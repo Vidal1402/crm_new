@@ -13,9 +13,8 @@ import { parsePlan, type CommercialPlan } from '@/lib/plans';
 // ----------------------------------------------------------------------------
 // AppUserProvider
 // ----------------------------------------------------------------------------
-// Self-hosted single-org build: there is no tenant concept. The only thing
-// we surface to consumers is the role read from auth.jwt().app_metadata.role
-// (populated by the on_auth_user_created trigger).
+// Role and tenant_id come from auth.jwt().app_metadata (handle_new_user).
+// RLS uses the same claims. Plan is still per-user until Fase C (plano no tenant).
 //
 // Role gating elsewhere in the app should consume `useAppUser().role` instead
 // of querying the DB; the JWT is the source of truth for access control.
@@ -26,6 +25,7 @@ export type AppRole = 'admin' | 'operator';
 interface AppUserContextValue {
   userId: string | null;
   role: AppRole | null;
+  tenantId: string | null;
   plan: CommercialPlan;
   loading: boolean;
   reloadPlan: () => Promise<void>;
@@ -51,6 +51,11 @@ export function AppUserProvider({ children }: { children: ReactNode }) {
     () => readRoleFromUser(user?.app_metadata as Record<string, unknown> | undefined),
     [user],
   );
+
+  const tenantId = useMemo(() => {
+    const raw = (user?.app_metadata as Record<string, unknown> | undefined)?.tenant_id;
+    return typeof raw === 'string' && raw.length > 0 ? raw : null;
+  }, [user]);
 
   const loadPlan = useMemo(
     () => async (userId: string) => {
@@ -94,8 +99,8 @@ export function AppUserProvider({ children }: { children: ReactNode }) {
   const loading = authLoading || planLoading;
 
   const value = useMemo<AppUserContextValue>(
-    () => ({ userId: user?.id ?? null, role, plan, loading, reloadPlan }),
-    [user, role, plan, loading, reloadPlan],
+    () => ({ userId: user?.id ?? null, role, tenantId, plan, loading, reloadPlan }),
+    [user, role, tenantId, plan, loading, reloadPlan],
   );
 
   return <AppUserContext.Provider value={value}>{children}</AppUserContext.Provider>;

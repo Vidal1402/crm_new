@@ -12,7 +12,7 @@
 // ============================================================================
 
 import { requireAdmin, AuthError } from '../_shared/auth.ts';
-import { getAuthAdminClient } from '../_shared/supabase-admin.ts';
+import { getAdminClient, getAuthAdminClient } from '../_shared/supabase-admin.ts';
 import { getCredential, setCredential } from '../_shared/credentials.ts';
 import { jsonResponse, preflight } from '../_shared/cors.ts';
 
@@ -46,6 +46,15 @@ Deno.serve(async (req) => {
     }
 
     const admin = getAuthAdminClient();
+    let tenantId = caller.tenantId;
+    if (!tenantId) {
+      const { data: row } = await getAdminClient()
+        .from('app_users')
+        .select('tenant_id')
+        .eq('user_id', caller.userId)
+        .maybeSingle();
+      tenantId = (row as { tenant_id?: string } | null)?.tenant_id ?? null;
+    }
 
     // redirectTo aponta o link do e-mail para /invite (definir senha e entrar).
     // Prioridade: origem de quem convidou (produção) > credencial app_url.
@@ -68,6 +77,7 @@ Deno.serve(async (req) => {
       data: {
         invited_role: role,
         invited_by: caller.email,
+        invited_to_tenant: tenantId,
       },
       ...(redirectTo ? { redirectTo } : {}),
     });
