@@ -3,6 +3,7 @@ import { BarChart3 } from 'lucide-react';
 import { NAV_ITEMS } from './nav-config';
 import { useAppUser } from '@/app/providers/AppUserProvider';
 import { PLANS } from '@/lib/plans';
+import { appProductName, isCrmEspelho } from '@/lib/app-flavor';
 
 export function Sidebar() {
   const { tenantRole, plan } = useAppUser();
@@ -15,7 +16,7 @@ export function Sidebar() {
       </div>
       <div className="flex items-center gap-3 px-5 pt-2 pb-7">
         <div className="grid h-9 w-9 place-items-center rounded-lg bg-white/5 text-blue-300"><BarChart3 className="h-4 w-4" /></div>
-        <div className="text-xs leading-5"><div className="font-semibold text-slate-200">Central de vendas</div><div className="text-[var(--sidebar-muted)]">Plano {PLANS[plan].name}</div></div>
+        <div className="text-xs leading-5"><div className="font-semibold text-slate-200">{isCrmEspelho() ? appProductName() : 'Central de vendas'}</div><div className="text-[var(--sidebar-muted)]">{isCrmEspelho() ? 'Dados reais · produção' : `Plano ${PLANS[plan].name}`}</div></div>
       </div>
       <nav className="flex-1 overflow-y-auto px-3">
         <div className="px-3 pb-3 text-[10px] uppercase tracking-[0.15em] text-[var(--sidebar-muted)]">Gerenciar</div>

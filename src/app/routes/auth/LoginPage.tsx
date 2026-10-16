@@ -76,7 +76,7 @@ export default function LoginPage() {
   return (
     <AuthShell
       title="Entrar"
-      subtitle="Acesse seu painel MEGACRM."
+      subtitle="Mesmos usuários e dados do CRM de produção. Este é o CRM Espelho (branch SaaS)."
       footer={
         signupOpen ? (
           <>

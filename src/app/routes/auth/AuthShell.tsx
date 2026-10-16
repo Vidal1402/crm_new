@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { appProductHint, appProductName } from '@/lib/app-flavor';
 
 interface AuthShellProps {
   title: string;
@@ -22,7 +23,8 @@ export function AuthShell({ title, subtitle, children, footer }: AuthShellProps)
             />
             <div>
               <div className="text-label">Agentise</div>
-              <div className="text-xl font-bold text-display">MEGACRM</div>
+              <div className="text-xl font-bold text-display">{appProductName()}</div>
+              <div className="text-[10px] text-[var(--color-text-secondary)] mt-0.5">{appProductHint()}</div>
             </div>
           </div>
         </div>

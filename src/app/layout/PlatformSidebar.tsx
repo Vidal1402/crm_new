@@ -12,8 +12,8 @@ export function PlatformSidebar() {
       <div className="flex items-center gap-3 px-5 pt-2 pb-7">
         <div className="grid h-9 w-9 place-items-center rounded-lg bg-white/5 text-blue-300"><Shield className="h-4 w-4" /></div>
         <div className="text-xs leading-5">
-          <div className="font-semibold text-slate-200">Plataforma</div>
-          <div className="text-[var(--sidebar-muted)]">Super Admin</div>
+          <div className="font-semibold text-slate-200">CRM Espelho</div>
+          <div className="text-[var(--sidebar-muted)]">Super Admin · dados reais</div>
         </div>
       </div>
       <nav className="flex-1 overflow-y-auto px-3">

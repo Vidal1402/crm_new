@@ -11,12 +11,18 @@ export default defineConfig(({ mode }) => {
   const supabaseUrl = process.env.SUPABASE_URL ?? fileEnv.SUPABASE_URL ?? '';
   const supabaseAnonKey =
     process.env.SUPABASE_ANON_KEY ?? fileEnv.SUPABASE_ANON_KEY ?? '';
+  const vercelEnv = process.env.VERCEL_ENV ?? fileEnv.VERCEL_ENV ?? '';
+  const appChannel =
+    process.env.VITE_APP_CHANNEL ??
+    fileEnv.VITE_APP_CHANNEL ??
+    (vercelEnv === 'production' ? 'producao' : 'espelho');
 
   return {
     plugins: [react(), tailwindcss()],
     define: {
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(supabaseUrl),
       'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(supabaseAnonKey),
+      'import.meta.env.VITE_APP_CHANNEL': JSON.stringify(appChannel),
     },
     resolve: {
       alias: {
