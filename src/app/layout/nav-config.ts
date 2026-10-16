@@ -6,15 +6,14 @@ import {
   Settings,
   type LucideIcon,
   SquareKanban,
+  Building2,
+  Shield,
 } from 'lucide-react';
 
 export interface NavItem {
   to: string;
   label: string;
   icon: LucideIcon;
-  // Itens adminOnly só aparecem para role 'admin'. Operadores não veem
-  // Credenciais (escrita admin-only — antes a rota existia mas sem link,
-  // deixando Configurações/Equipe/Conta inalcançáveis pela UI).
   adminOnly?: boolean;
 }
 
@@ -23,6 +22,11 @@ export interface NavItem {
 // Base de Conhecimento, Follow-ups e Horário de atendimento viraram abas dentro
 // de /ai-agent. Credenciais virou aba dentro de Configurações. Templates virou
 // aba dentro de /campaigns (Módulo 1).
+export const PLATFORM_NAV_ITEMS: NavItem[] = [
+  { to: '/saas', label: 'Clientes', icon: Building2 },
+  { to: '/saas/admins', label: 'Acesso', icon: Shield },
+];
+
 export const NAV_ITEMS: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/inbox', label: 'Caixa de entrada', icon: Inbox },

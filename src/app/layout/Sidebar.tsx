@@ -5,7 +5,8 @@ import { useAppUser } from '@/app/providers/AppUserProvider';
 import { PLANS } from '@/lib/plans';
 
 export function Sidebar() {
-  const { role, plan } = useAppUser();
+  const { tenantRole, plan } = useAppUser();
+  const isTenantAdmin = tenantRole === 'admin';
   return (
     <aside className="app-sidebar hidden md:flex md:flex-col w-60 shrink-0 sticky top-0 h-screen" aria-label="Navegação principal">
       <div className="h-20 flex items-center gap-3 px-6 text-white">
@@ -18,7 +19,7 @@ export function Sidebar() {
       </div>
       <nav className="flex-1 overflow-y-auto px-3">
         <div className="px-3 pb-3 text-[10px] uppercase tracking-[0.15em] text-[var(--sidebar-muted)]">Gerenciar</div>
-        <div className="space-y-1">{NAV_ITEMS.filter(item => !item.adminOnly || role === 'admin').map(({ to, label, icon: Icon }) => (
+        <div className="space-y-1">{NAV_ITEMS.filter(item => !item.adminOnly || isTenantAdmin).map(({ to, label, icon: Icon }) => (
           <NavLink key={to} to={to} className="sidebar-link"><Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.7} /><span>{label}</span></NavLink>
         ))}</div>
       </nav>

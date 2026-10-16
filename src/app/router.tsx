@@ -5,8 +5,9 @@ import { useSupabaseConfig } from '@/hooks/useSupabase';
 import { useAuth } from './providers/AuthProvider';
 import { isAuthCallbackLocation } from '@/lib/auth-callback';
 import { FeatureGate } from '@/components/plans/FeatureGate';
+import { useAppUser } from './providers/AppUserProvider';
+import { homePath } from '@/lib/home-path';
 
-// Lazy loading the page chunks keeps the initial bundle lean.
 const SetupPage = lazy(() => import('./routes/setup/SetupPage'));
 const LoginPage = lazy(() => import('./routes/auth/LoginPage'));
 const SignupPage = lazy(() => import('./routes/auth/SignupPage'));
@@ -18,6 +19,9 @@ const ContactsPage = lazy(() => import('./routes/contacts/ContactsPage'));
 const ContactDetailPage = lazy(() => import('./routes/contacts/ContactDetailPage'));
 const FunilPage = lazy(() => import('./routes/funil/FunilPage'));
 const SettingsPage = lazy(() => import('./routes/settings/SettingsPage'));
+const SaasTenantsPage = lazy(() => import('./routes/saas/SaasTenantsPage'));
+const SaasTenantDetailPage = lazy(() => import('./routes/saas/SaasTenantDetailPage'));
+const SaasAdminsPage = lazy(() => import('./routes/saas/SaasAdminsPage'));
 
 function PageFallback() {
   return (
@@ -25,6 +29,12 @@ function PageFallback() {
       <div className="text-label opacity-60">Carregando...</div>
     </div>
   );
+}
+
+function HomeRedirect() {
+  const { isSuperAdmin, loading } = useAppUser();
+  if (loading) return <PageFallback />;
+  return <Navigate to={homePath(isSuperAdmin)} replace />;
 }
 
 function RequireSetup({ children }: { children: ReactElement }) {
@@ -52,24 +62,30 @@ function RedirectIfConfigured({ children }: { children: ReactElement }) {
   const { configured } = useSupabaseConfig();
   const { session } = useAuth();
   const location = useLocation();
-  // Tokens de convite/reset: main.tsx já manda para /invite. Não redirecionar
-  // daqui (Navigate descarta o hash e o convidado cai no login/wizard).
   if (isAuthCallbackLocation(location.search, location.hash)) {
     return null;
   }
   if (configured) {
-    // Already configured → move the user forward. If they also have a
-    // session, jump straight to dashboard; otherwise to login.
-    return <Navigate to={session ? '/dashboard' : '/auth/login'} replace />;
+    return session ? <HomeRedirect /> : <Navigate to="/auth/login" replace />;
+  }
+  return children;
+}
+
+function RequireSuperAdmin({ children }: { children: ReactElement }) {
+  const { isSuperAdmin, loading } = useAppUser();
+  if (loading) return <PageFallback />;
+  if (!isSuperAdmin) {
+    return <Navigate to="/dashboard" replace />;
   }
   return children;
 }
 
 function RedirectIfAuthenticated({ children }: { children: ReactElement }) {
   const { session, loading } = useAuth();
-  if (loading) return <PageFallback />;
+  const { isSuperAdmin, loading: userLoading } = useAppUser();
+  if (loading || userLoading) return <PageFallback />;
   if (session) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={homePath(isSuperAdmin)} replace />;
   }
   return children;
 }
@@ -107,9 +123,6 @@ export function AppRouter() {
             </RequireSetup>
           }
         />
-        {/* /invite NÃO usa RequireSetup nem RedirectIfAuthenticated: o link
-            do e-mail traz tokens na URL e o convidado precisa definir senha
-            sem cair no wizard /setup. */}
         <Route path="/invite" element={<InvitePage />} />
 
         <Route
@@ -121,7 +134,31 @@ export function AppRouter() {
             </RequireSetup>
           }
         >
-          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route index element={<HomeRedirect />} />
+          <Route
+            path="/saas"
+            element={
+              <RequireSuperAdmin>
+                <SaasTenantsPage />
+              </RequireSuperAdmin>
+            }
+          />
+          <Route
+            path="/saas/admins"
+            element={
+              <RequireSuperAdmin>
+                <SaasAdminsPage />
+              </RequireSuperAdmin>
+            }
+          />
+          <Route
+            path="/saas/:id"
+            element={
+              <RequireSuperAdmin>
+                <SaasTenantDetailPage />
+              </RequireSuperAdmin>
+            }
+          />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/inbox" element={<InboxPage />} />
           <Route
@@ -132,22 +169,18 @@ export function AppRouter() {
               </FeatureGate>
             }
           />
-          {/* Templates virou aba dentro de Campanhas (Módulo 1) — preserva links salvos. */}
           <Route path="/templates" element={<Navigate to="/campaigns?tab=templates" replace />} />
           <Route path="/contacts" element={<ContactsPage />} />
           <Route path="/contacts/:id" element={<ContactDetailPage />} />
           <Route path="/funil" element={<FunilPage />} />
-          {/* /projetos (Entrega) e /educacao removidos — redirecionam pro funil */}
           <Route path="/projetos" element={<Navigate to="/funil" replace />} />
           <Route path="/educacao" element={<Navigate to="/funil" replace />} />
-          {/* Rotas antigas → agora abas dentro de /ai-agent */}
           <Route path="/settings" element={<Navigate to="/settings/profile" replace />} />
           <Route path="/settings/profile" element={<SettingsPage />} />
-          {/* Credenciais agora é aba dentro de Configurações */}
           <Route path="/settings/credentials" element={<Navigate to="/settings/profile" replace />} />
         </Route>
 
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<HomeRedirect />} />
       </Routes>
     </Suspense>
   );

@@ -129,7 +129,8 @@ export const SCREEN_TEMPLATES: Record<
 };
 
 export function parsePlan(value: unknown): CommercialPlan {
-  if (value === 'inicial' || value === 'intermediario' || value === 'avancado') return value;
+  if (value === 'basico' || value === 'inicial') return 'inicial';
+  if (value === 'intermediario' || value === 'avancado') return value;
   return 'avancado';
 }
 

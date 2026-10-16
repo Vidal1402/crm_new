@@ -54,7 +54,9 @@ export default function InvitePage() {
     await supabase.auth.refreshSession();
     setSubmitting(false);
     toast.success('Conta ativada. Bem-vindo!');
-    navigate('/dashboard', { replace: true });
+    const { data } = await supabase.auth.getUser();
+    const role = (data.user?.app_metadata as Record<string, unknown> | undefined)?.role;
+    navigate(role === 'super_admin' ? '/saas' : '/dashboard', { replace: true });
   };
 
   if (!configured) {

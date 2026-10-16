@@ -39,8 +39,8 @@ interface MemberRow {
 }
 
 export function TeamSettings() {
-  const { userId, role: callerRole, reloadPlan } = useAppUser();
-  const isOwner = callerRole === 'admin';
+  const { userId, tenantRole, reloadPlan } = useAppUser();
+  const isOwner = tenantRole === 'admin';
 
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [loading, setLoading] = useState(true);

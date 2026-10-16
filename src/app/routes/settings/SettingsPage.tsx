@@ -33,7 +33,7 @@ interface TabDef {
 }
 
 export default function SettingsPage() {
-  const { role } = useAppUser();
+  const { tenantRole } = useAppUser();
   const [active, setActive] = useState<TabId>('credentials');
 
   const tabs: TabDef[] = useMemo(
@@ -83,8 +83,8 @@ export default function SettingsPage() {
             render: () => <CredentialsPage />,
           },
         ] as TabDef[]
-      ).filter((t) => !t.adminOnly || role === 'admin'),
-    [role],
+      ).filter((t) => !t.adminOnly || tenantRole === 'admin'),
+    [tenantRole],
   );
 
   // Operador só enxerga "Conta"; admin vê tudo. Garante que a aba ativa

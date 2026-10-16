@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { NAV_ITEMS } from './nav-config';
+import { NAV_ITEMS, PLATFORM_NAV_ITEMS } from './nav-config';
 import { toast } from 'sonner';
 import { Menu, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,12 +8,19 @@ import { useAuth } from '@/app/providers/AuthProvider';
 
 interface HeaderProps {
   onMenuClick?: () => void;
+  platform?: boolean;
 }
 
-export function Header({ onMenuClick }: HeaderProps) {
+export function Header({ onMenuClick, platform = false }: HeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const section = NAV_ITEMS.find(item => location.pathname.startsWith(item.to))?.label ?? "Workspace";
+  const items = platform ? PLATFORM_NAV_ITEMS : NAV_ITEMS;
+  const section =
+    items.find((item) =>
+      item.to === '/saas'
+        ? location.pathname === '/saas'
+        : location.pathname.startsWith(item.to),
+    )?.label ?? (platform ? 'Plataforma' : 'Workspace');
   const { user, signOut } = useAuth();
 
   const handleLogout = async () => {
@@ -27,7 +34,7 @@ export function Header({ onMenuClick }: HeaderProps) {
       className="h-16 shrink-0 glass-surface border-b border-[rgba(59,130,246,0.08)] flex items-center justify-between px-4 sm:px-6 gap-4"
       role="banner"
     >
-      <div className="flex items-center gap-2"><span className="hidden md:inline text-sm text-[var(--color-text-secondary)]">Workspace <span className="mx-2 opacity-40">/</span> <strong className="font-medium text-[var(--color-text-primary)]">{section}</strong></span>
+      <div className="flex items-center gap-2"><span className="hidden md:inline text-sm text-[var(--color-text-secondary)]">{platform ? 'Super Admin' : 'Workspace'} <span className="mx-2 opacity-40">/</span> <strong className="font-medium text-[var(--color-text-primary)]">{section}</strong></span>
         <button
           onClick={onMenuClick}
           aria-label="Abrir menu"
@@ -38,12 +45,12 @@ export function Header({ onMenuClick }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-3">
-        <NotificationsDropdown />
+        {!platform ? <NotificationsDropdown /> : null}
 
         <div className="flex items-center gap-2">
           <div className="hidden sm:block text-right leading-tight">
             <div className="text-[0.65rem] uppercase tracking-[0.12em] text-[var(--color-text-secondary)]">
-              Conectado
+              {platform ? 'Super Admin' : 'Conectado'}
             </div>
             <div className="text-xs font-medium text-[var(--color-text-primary)] max-w-[200px] truncate">
               {user?.email ?? '—'}

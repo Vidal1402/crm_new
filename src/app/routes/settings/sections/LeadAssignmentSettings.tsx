@@ -10,8 +10,8 @@ import { useOperators } from '@/hooks/useOperators';
 // a sequência do round-robin; o toggle liga/desliga a atribuição automática.
 // Persistência direta (padrão de BusinessHoursSettings), gated a admin.
 export function LeadAssignmentSettings() {
-  const { userId, role } = useAppUser();
-  const isAdmin = role === 'admin';
+  const { userId, tenantRole } = useAppUser();
+  const isAdmin = tenantRole === 'admin';
   const { operators } = useOperators();
 
   const [enabled, setEnabled] = useState(false);

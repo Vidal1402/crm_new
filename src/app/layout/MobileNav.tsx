@@ -1,19 +1,21 @@
 import { NavLink } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { NAV_ITEMS } from './nav-config';
+import { NAV_ITEMS, PLATFORM_NAV_ITEMS, type NavItem } from './nav-config';
 import { useAppUser } from '@/app/providers/AppUserProvider';
 
 interface MobileNavProps {
   open: boolean;
   onClose: () => void;
+  platform?: boolean;
 }
 
-// Drawer de navegação para telas < md (768px). Sem ele, a Sidebar
-// (`hidden md:flex`) deixava o app sem NENHUMA navegação no mobile.
-export function MobileNav({ open, onClose }: MobileNavProps) {
-  const { role } = useAppUser();
-  const items = NAV_ITEMS.filter((item) => !item.adminOnly || role === 'admin');
+export function MobileNav({ open, onClose, platform = false }: MobileNavProps) {
+  const { tenantRole } = useAppUser();
+  const source: NavItem[] = platform ? PLATFORM_NAV_ITEMS : NAV_ITEMS;
+  const items = platform
+    ? source
+    : source.filter((item) => !item.adminOnly || tenantRole === 'admin');
 
   return (
     <div
@@ -36,14 +38,9 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
         aria-label="Navegação"
       >
         <div className="h-16 shrink-0 flex items-center justify-between px-4 border-b border-[rgba(59,130,246,0.1)]">
-          <div className="flex items-center gap-2">
-            <img
-              src="/agentise-mark.png"
-              alt="Agentise"
-              className="h-9 w-9 rounded-xl"
-            />
-            <span className="font-semibold text-[var(--color-text-primary)]">Agentise</span>
-          </div>
+          <span className="font-semibold text-[var(--color-text-primary)]">
+            {platform ? 'Plataforma' : 'Agentise'}
+          </span>
           <button
             onClick={onClose}
             aria-label="Fechar menu"
@@ -60,6 +57,7 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
               <NavLink
                 key={item.to}
                 to={item.to}
+                end={item.to === '/saas'}
                 onClick={onClose}
                 className={({ isActive }) =>
                   cn(

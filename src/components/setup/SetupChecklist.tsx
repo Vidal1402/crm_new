@@ -48,7 +48,7 @@ function isDismissed(): boolean {
 }
 
 export function SetupChecklist() {
-  const { role } = useAppUser();
+  const { tenantRole: role } = useAppUser();
   const progress = useSetupProgress();
   const [hidden, setHidden] = useState(isDismissed);
 

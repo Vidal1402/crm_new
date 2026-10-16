@@ -18,7 +18,7 @@ const brl = (n: number) =>
 export default function FunilPage() {
   const funil = usePipeline();
   const { pipelines, selectedId, select, pipeline, stages, deals, loading, error, reload, moveDeal, createDeal } = funil;
-  const { role } = useAppUser();
+  const { tenantRole: role } = useAppUser();
 
   const [contacts, setContacts] = useState<ContactLite[]>([]);
   const [dragId, setDragId] = useState<string | null>(null);

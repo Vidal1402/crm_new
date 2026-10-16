@@ -44,7 +44,9 @@ export default function LoginPage() {
       toast.error('Não foi possível entrar', { description: error });
       return;
     }
-    navigate('/dashboard', { replace: true });
+    const { data } = await getSupabase().auth.getUser();
+    const role = (data.user?.app_metadata as Record<string, unknown> | undefined)?.role;
+    navigate(role === 'super_admin' ? '/saas' : '/dashboard', { replace: true });
   };
 
   // Esqueci minha senha: dispara o e-mail de recuperação do Supabase. O link
