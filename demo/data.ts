@@ -2,7 +2,7 @@
 export type Row = Record<string, any>;
 export const uid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const ago = (days=0, minutes=0) => new Date(Date.now()-days*86400000-minutes*60000).toISOString();
-export const user = {id:uid(1),email:'marina@exemplo.com',aud:'authenticated',role:'authenticated',app_metadata:{role:'super_admin',tenant_role:'admin',tenant_id:uid(1)},user_metadata:{display_name:'Marina Costa'},created_at:ago(90)};
+export const user = {id:uid(1),email:'marina@exemplo.com',aud:'authenticated',role:'authenticated',app_metadata:{role:'admin'},user_metadata:{display_name:'Marina Costa'},created_at:ago(90)};
 export const operators = [{user_id:uid(1),email:'marina@exemplo.com',name:'Marina Costa',role:'admin'},{user_id:uid(2),email:'rafael@exemplo.com',name:'Rafael Santos',role:'operator'},{user_id:uid(3),email:'camila@exemplo.com',name:'Camila Oliveira',role:'operator'},{user_id:uid(4),email:'pedro@exemplo.com',name:'Pedro Lima',role:'operator'}];
 export const session = {access_token:'demo-local-session',refresh_token:'demo-local-refresh',expires_at:4102444800,expires_in:3600,token_type:'bearer',user};
 export function seed(): Record<string, Row[]> {

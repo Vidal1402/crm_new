@@ -59,46 +59,6 @@ export function demoPlugin(): Plugin {
    }
    if(fn==='zernio-number-status')return send({ok:true,connected:true,number:{display_phone_number:'(11) 0000-0000',verified_name:'Aurora Negócios',messaging_limit_tier:'TIER_10K',quality_rating:'GREEN',health_status:'CONNECTED'}});
    if(fn==='invite-team-member'){const id=randomUUID();db.app_users.push({user_id:id,email:body.email,role:body.role??'operator',created_at:new Date().toISOString(),accepted_at:null});return send({ok:true,data:{user_id:id}});}
-   if(fn==='saas-tenants'){
-    db.saas_tenants??=[{id:'mock-megacrm',slug:'megacrm',name:'MEGACRM',status:'active',owner_email:'marina@exemplo.com',created_at:new Date().toISOString(),plan:'inicial',subscription_status:'active',users:1}];
-    db.saas_members??={['mock-megacrm']:[{user_id:user.id,email:user.email,role:'admin',accepted_at:new Date().toISOString(),commercial_plan:'inicial'}]};
-    db.platform_admins??=[{user_id:user.id,email:user.email,created_at:new Date().toISOString()}];
-    const action=body.action??'list';
-    if(action==='create'){
-     const tenant={id:randomUUID(),slug:String(body.name??'cliente').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40),name:body.name,status:'active',owner_email:body.owner_email,created_at:new Date().toISOString(),plan:body.plan??'inicial',subscription_status:'active',users:1};
-     db.saas_tenants.push(tenant);
-     db.saas_members[tenant.id]=[{user_id:randomUUID(),email:body.owner_email,role:'admin',accepted_at:null,commercial_plan:tenant.plan}];
-     return send({ok:true,tenant});
-    }
-    if(action==='update'){
-     const tenant=db.saas_tenants.find((t:{id:string})=>t.id===body.id);
-     if(!tenant)return send({ok:false,error:'CRM não encontrado.'});
-     if(body.plan)tenant.plan=body.plan;
-     if(body.status){tenant.status=body.status;tenant.subscription_status=body.status;}
-     return send({ok:true,tenant});
-    }
-    if(action==='members')return send({ok:true,members:db.saas_members[body.tenant_id]??[]});
-    if(action==='invite'){
-     const member={user_id:randomUUID(),email:body.email,role:body.role??'operator',accepted_at:null,commercial_plan:'inicial'};
-     (db.saas_members[body.tenant_id]??=[]).push(member);
-     return send({ok:true,user_id:member.user_id,email:body.email,role:body.role});
-    }
-    if(action==='revoke'){
-     db.saas_members[body.tenant_id]=(db.saas_members[body.tenant_id]??[]).filter((m:{user_id:string})=>m.user_id!==body.user_id);
-     return send({ok:true,user_id:body.user_id});
-    }
-    if(action==='list_platform_admins')return send({ok:true,admins:db.platform_admins});
-    if(action==='invite_platform_admin'){
-     const admin={user_id:randomUUID(),email:body.email,created_at:new Date().toISOString()};
-     db.platform_admins.push(admin);
-     return send({ok:true,user_id:admin.user_id,email:body.email});
-    }
-    if(action==='revoke_platform_admin'){
-     db.platform_admins=db.platform_admins.filter((a:{user_id:string})=>a.user_id!==body.user_id);
-     return send({ok:true,user_id:body.user_id});
-    }
-    return send({ok:true,tenants:db.saas_tenants,live:true});
-   }
    return send({ok:true,success:true,data:{}});
   }
   if(p.includes('/rest/v1/rpc/')) {

@@ -161,7 +161,7 @@ export default function SaasTenantsPage() {
               id="saas-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Ex.: Clínica Aurora"
+              placeholder="Nome da empresa"
               required
               minLength={2}
             />

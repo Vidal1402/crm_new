@@ -15,7 +15,7 @@
     "functions:deploy": "node scripts/deploy-functions.mjs",
     "package:students": "node scripts/package-students.mjs",
     "test:distribution": "node --test tests/distribution/*.test.mjs",
-    "demo": "vite --config vite.config.demo.ts",
+    "demo": "vite",
     "test:edge": "deno test --allow-env=ZERNIO_API_BASE_URL tests/edge"
   },
   "dependencies": {
