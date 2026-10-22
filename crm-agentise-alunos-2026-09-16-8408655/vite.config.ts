@@ -8,9 +8,18 @@ export default defineConfig(({ mode }) => {
   // prioridade). Em dev, caem para um arquivo .env/.env.local na raiz, para o
   // app já abrir configurado e pular o wizard /setup.
   const fileEnv = loadEnv(mode, process.cwd(), '');
-  const supabaseUrl = process.env.SUPABASE_URL ?? fileEnv.SUPABASE_URL ?? '';
+  const supabaseUrl =
+    process.env.SUPABASE_URL ??
+    process.env.VITE_SUPABASE_URL ??
+    fileEnv.SUPABASE_URL ??
+    fileEnv.VITE_SUPABASE_URL ??
+    '';
   const supabaseAnonKey =
-    process.env.SUPABASE_ANON_KEY ?? fileEnv.SUPABASE_ANON_KEY ?? '';
+    process.env.SUPABASE_ANON_KEY ??
+    process.env.VITE_SUPABASE_ANON_KEY ??
+    fileEnv.SUPABASE_ANON_KEY ??
+    fileEnv.VITE_SUPABASE_ANON_KEY ??
+    '';
 
   return {
     plugins: [react(), tailwindcss()],

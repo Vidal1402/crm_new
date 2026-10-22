@@ -1,6 +1,7 @@
 import {
   createContext,
   useCallback,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -12,6 +13,7 @@ import {
   setSupabaseCredentials,
   type SupabaseCredentials,
 } from '@/lib/supabase';
+import { credentialsFromPublicConfig } from '@/lib/publicConfig';
 
 // ----------------------------------------------------------------------------
 // SupabaseProvider
@@ -36,6 +38,39 @@ export function SupabaseProvider({ children }: { children: ReactNode }) {
   const [credentials, setCredentials] = useState<SupabaseCredentials | null>(
     () => getSupabaseCredentials(),
   );
+  // Build sem as variáveis ainda pode achar a URL e a chave anon no runtime.
+  // Enquanto isso não responde, não deixamos o roteador cair no wizard.
+  const [probeDone, setProbeDone] = useState(() => isSupabaseConfigured());
+
+  useEffect(() => {
+    if (isSupabaseConfigured()) {
+      setProbeDone(true);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      if (!cancelled) setProbeDone(true);
+    }, 4000);
+    void fetch('/api/public-config')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body) => {
+        if (cancelled) return;
+        const creds = credentialsFromPublicConfig(body);
+        if (!creds) return;
+        setSupabaseCredentials(creds);
+        setCredentials(creds);
+        setConfigured(true);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        window.clearTimeout(timer);
+        if (!cancelled) setProbeDone(true);
+      });
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, []);
 
   const saveCredentials = useCallback((creds: SupabaseCredentials) => {
     setSupabaseCredentials(creds);
@@ -53,6 +88,8 @@ export function SupabaseProvider({ children }: { children: ReactNode }) {
     () => ({ configured, credentials, saveCredentials, clearCredentials }),
     [configured, credentials, saveCredentials, clearCredentials],
   );
+
+  if (!probeDone) return null;
 
   return (
     <SupabaseContext.Provider value={value}>{children}</SupabaseContext.Provider>
