@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { canReuseRedeploy } from './redeployGate';
 
 type BootstrapBody = {
   supabase_url?: string;
@@ -11,6 +12,7 @@ type BootstrapBody = {
   owner_email?: string;
   owner_password?: string;
   vercel_project_id?: string;
+  force_redeploy?: boolean;
 };
 
 type ApiRequest = {
@@ -68,23 +70,17 @@ async function supabaseQuery(ref: string, pat: string, query: string) {
   }
 }
 
-async function mark(ref: string, pat: string, step: string, metadata: unknown = {}) {
+async function mark(ref: string, pat: string, step: string, metadata: unknown = {}, overwrite = false) {
+  const conflict = overwrite
+    ? 'ON CONFLICT (step) DO UPDATE SET completed_at = now(), metadata = EXCLUDED.metadata'
+    : 'ON CONFLICT (step) DO NOTHING';
   await supabaseQuery(
     ref,
     pat,
     `INSERT INTO public._bootstrap_state (step, completed_at, metadata)
      VALUES ('${step.replaceAll("'", "''")}', now(), '${jsonString(metadata)}'::jsonb)
-     ON CONFLICT (step) DO NOTHING;`,
+     ${conflict};`,
   );
-}
-
-async function hasStep(ref: string, pat: string, step: string) {
-  const rows = await supabaseQuery(
-    ref,
-    pat,
-    `SELECT step FROM public._bootstrap_state WHERE step = '${step.replaceAll("'", "''")}';`,
-  );
-  return Array.isArray(rows) && rows.length > 0;
 }
 
 async function getStepMetadata(ref: string, pat: string, step: string) {
@@ -593,22 +589,31 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     steps.push('vercel_envs_set');
 
     stepFailed = 'redeploy';
-    // Idempotente: um re-run não dispara um novo deployment. Se já marcamos
-    // redeploy_triggered, reaproveitamos o deployment do checkpoint.
+    // The checkpoint lives in the shared Supabase project. A redeploy recorded
+    // by the production CRM must not block the Espelho project from saving its
+    // own URL and keys. An explicit retry (force_redeploy) publishes again.
+    const previous = await getStepMetadata(ref, body.supabase_pat, 'redeploy_triggered');
+    const force = req.body?.force_redeploy === true;
     let deployment: { id: string; url: string };
-    if (await hasStep(ref, body.supabase_pat, 'redeploy_triggered')) {
-      const meta = await getStepMetadata(ref, body.supabase_pat, 'redeploy_triggered');
+    if (!force && canReuseRedeploy(previous, body.vercel_project_id)) {
       deployment = {
-        id: typeof meta?.deployment_id === 'string' ? meta.deployment_id : '',
-        url: typeof meta?.deployment_url === 'string' ? meta.deployment_url : '',
+        id: typeof previous?.deployment_id === 'string' ? previous.deployment_id : '',
+        url: typeof previous?.deployment_url === 'string' ? previous.deployment_url : '',
       };
     } else {
       deployment = await redeploy(body.vercel_project_id, body.vercel_token, vercelTeamId);
-      await mark(ref, body.supabase_pat, 'redeploy_triggered', {
-        deployment_id: deployment.id,
-        deployment_url: deployment.url,
-        triggered_at: new Date().toISOString(),
-      });
+      await mark(
+        ref,
+        body.supabase_pat,
+        'redeploy_triggered',
+        {
+          deployment_id: deployment.id,
+          deployment_url: deployment.url,
+          project_id: body.vercel_project_id,
+          triggered_at: new Date().toISOString(),
+        },
+        true,
+      );
     }
     steps.push('redeploy_triggered');
 

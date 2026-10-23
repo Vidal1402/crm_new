@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Eye, EyeOff, ExternalLink, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { setSupabaseCredentials } from '@/lib/supabase';
 
 type Step = 1 | 2 | 3;
 type FieldKey =
@@ -319,11 +320,21 @@ export default function SetupPage() {
         });
         const body = (await res.json()) as { completed?: string[] };
         if (cancelled || !Array.isArray(body.completed)) return;
+        const supabaseUrl = core.supabase_url.trim().replace(/\/+$/, '');
+        const anonKey = core.supabase_anon_key.trim();
+        if (/^https:\/\/[a-z0-9-]+\.supabase\.(co|in)$/i.test(supabaseUrl) && anonKey) {
+          setSupabaseCredentials({ url: supabaseUrl, anonKey });
+        }
         const done = new Set(body.completed);
         setTimeline(
           TIMELINE_STEPS.filter((entry) => done.has(entry.key)).map((entry) => entry.label),
         );
-        if (done.has('redeploy_triggered')) void waitForAppLive();
+        if (done.has('redeploy_triggered')) {
+          const health = await fetch('/api/health', { cache: 'no-store' });
+          if (cancelled) return;
+          if (health.ok) void waitForAppLive();
+          else setDeployTimedOut(true);
+        }
       } catch {
         // Leave the timeline empty; the user can still retry.
       }
@@ -341,11 +352,16 @@ export default function SetupPage() {
     setBootstrapping(true);
     setDeployTimedOut(false);
     setTimeline(['Conectando ao Supabase']);
+    const supabaseUrl = core.supabase_url.trim().replace(/\/+$/, '');
+    const anonKey = core.supabase_anon_key.trim();
+    if (/^https:\/\/[a-z0-9-]+\.supabase\.(co|in)$/i.test(supabaseUrl) && anonKey) {
+      setSupabaseCredentials({ url: supabaseUrl, anonKey });
+    }
     try {
       const res = await fetch('/api/bootstrap', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(core),
+        body: JSON.stringify({ ...core, supabase_url: supabaseUrl, force_redeploy: true }),
       });
       const body = await res.json();
       if (!res.ok || !body.success) throw new Error(body.message ?? 'Bootstrap falhou.');
@@ -473,17 +489,18 @@ export default function SetupPage() {
               {deployTimedOut ? (
                 <div className="mt-8 rounded-xl border border-[rgba(239,68,68,0.3)] bg-[rgba(239,68,68,0.06)] p-5">
                   <p className="text-sm leading-5 text-[var(--color-text-primary)]">
-                    O redeploy esta demorando mais que o esperado. Verifique o status em{' '}
-                    <a
-                      href="https://vercel.com/dashboard"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[var(--accent-secondary)] underline hover:text-[#85B7EB]"
-                    >
-                      vercel.com/dashboard
-                    </a>
-                    . Quando o app estiver no ar, continue.
+                    Este projeto ainda nao ficou pronto com a URL do Supabase. O checkpoint antigo nao vale para este app. Reinforme a senha do owner e salve de novo.
                   </p>
+                  {!core.owner_password ? (
+                    <input
+                      type="password"
+                      value={core.owner_password}
+                      onChange={(event) => setCore((prev) => ({ ...prev, owner_password: event.target.value }))}
+                      placeholder="senha do owner"
+                      autoComplete="current-password"
+                      className="mt-4 w-full rounded-lg border border-[rgba(59,130,246,0.2)] bg-white/[0.03] px-4 py-3 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-secondary)] focus:border-[#3B82F6] focus:outline-none"
+                    />
+                  ) : null}
                   <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:justify-end">
                     <button
                       type="button"
@@ -492,8 +509,8 @@ export default function SetupPage() {
                     >
                       Verificar de novo
                     </button>
-                    <PrimaryButton onClick={() => { window.localStorage.removeItem(STORAGE_KEY); window.location.href = '/dashboard'; }}>
-                      Continuar mesmo assim
+                    <PrimaryButton disabled={!core.owner_password || bootstrapping} onClick={runBootstrap}>
+                      Salvar de novo
                     </PrimaryButton>
                   </div>
                 </div>
