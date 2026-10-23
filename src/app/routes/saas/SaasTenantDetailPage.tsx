@@ -150,8 +150,8 @@ export default function SaasTenantDetailPage() {
                 className={cn(
                   'text-left rounded-xl border p-3 transition-colors disabled:opacity-50',
                   selected
-                    ? 'border-[var(--accent-primary)] bg-[rgba(59,130,246,0.12)]'
-                    : 'border-[rgba(59,130,246,0.2)] hover:bg-white/[0.03]',
+                    ? 'border-[var(--accent-primary)] bg-[#E5E7EB]'
+                    : 'border-[#E5E7EB] hover:bg-white',
                 )}
               >
                 <div className="font-semibold">{p.name}</div>
@@ -180,7 +180,7 @@ export default function SaasTenantDetailPage() {
             placeholder="email@cliente.com"
           />
           <select
-            className="h-11 rounded-lg border border-[rgba(59,130,246,0.2)] bg-white/[0.03] px-3 text-sm"
+            className="h-11 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm"
             value={role}
             onChange={(e) => setRole(e.target.value as 'admin' | 'operator')}
           >
@@ -196,7 +196,7 @@ export default function SaasTenantDetailPage() {
           {members.map((m) => (
             <li
               key={m.user_id}
-              className="flex items-center justify-between gap-3 rounded-lg border border-[rgba(59,130,246,0.15)] px-3 py-2"
+              className="flex items-center justify-between gap-3 rounded-lg border border-[#E5E7EB] px-3 py-2"
             >
               <div className="min-w-0">
                 <div className="text-sm truncate">{m.email ?? m.user_id}</div>

@@ -75,7 +75,7 @@ export function UazapiCard({ refreshKey = 0 }: { refreshKey?: number }) {
   };
 
   return (
-    <div className="rounded-xl border border-[rgba(59,130,246,0.15)] bg-white/[0.02] p-5 backdrop-blur-[40px]">
+    <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 backdrop-blur-[40px]">
       <div className="flex items-start gap-4">
         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[rgba(245,158,11,0.25)] bg-[rgba(245,158,11,0.08)]">
           <Smartphone className="h-5 w-5 text-[#F59E0B]" />
@@ -130,13 +130,13 @@ export function UazapiCard({ refreshKey = 0 }: { refreshKey?: number }) {
                     Webhook para receber mensagens (cadastre na Uazapi)
                   </div>
                   <div className="flex items-start gap-2">
-                    <code className="min-w-0 flex-1 break-all rounded-lg border border-[rgba(59,130,246,0.2)] bg-white/[0.03] px-3 py-2 text-xs text-[var(--color-text-primary)]">
+                    <code className="min-w-0 flex-1 break-all rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs text-[var(--color-text-primary)]">
                       {status.webhook_url}
                     </code>
                     <button
                       onClick={copyHook}
                       aria-label="Copiar URL do webhook"
-                      className="rounded-lg border border-[rgba(59,130,246,0.2)] bg-white/[0.03] p-2 text-[var(--color-text-secondary)] transition hover:border-[var(--accent-primary)] hover:text-[var(--color-text-primary)]"
+                      className="rounded-lg border border-[#E5E7EB] bg-white p-2 text-[var(--color-text-secondary)] transition hover:border-[var(--accent-primary)] hover:text-[var(--color-text-primary)]"
                     >
                       <Copy className="h-4 w-4" />
                     </button>

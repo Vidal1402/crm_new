@@ -4,6 +4,7 @@ import { Loader2, Package, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { getSupabase } from '@/lib/supabase';
+import { isStoryId, mergeById, storyProducts } from '@/lib/mock/story';
 
 // Configurações → Produtos. Catálogo de produtos atribuíveis a leads/negócios
 // (via deal_products no drawer do lead). Quantidade (estoque) só para Físico —
@@ -30,7 +31,7 @@ const TYPE_LABEL: Record<ProductType, string> = {
 };
 
 const selectCls =
-  'rounded-lg border border-[rgba(59,130,246,0.2)] bg-white/[0.03] px-2 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--accent-primary)] [&>option]:bg-[var(--color-bg-primary)]';
+  'rounded-lg border border-[#E5E7EB] bg-white px-2 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--accent-primary)] [&>option]:bg-[var(--color-bg-primary)]';
 
 export function ProductsSettings() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -47,7 +48,7 @@ export function ProductsSettings() {
       .select('*')
       .order('created_at', { ascending: false });
     if (error) toast.error('Falha ao carregar produtos', { description: error.message });
-    setProducts((data ?? []) as Product[]);
+    setProducts(mergeById(storyProducts(), error ? [] : ((data ?? []) as Product[])));
     setLoading(false);
   }, []);
 
@@ -84,6 +85,7 @@ export function ProductsSettings() {
   };
 
   const removeProduct = async (p: Product) => {
+    if (isStoryId(p.id)) return;
     if (!confirm(`Remover "${p.name}"? Ele será desvinculado dos negócios.`)) return;
     const supabase = getSupabase();
     const { error } = await supabase.from('products').delete().eq('id', p.id);
@@ -160,13 +162,13 @@ export function ProductsSettings() {
             {products.map((p) => (
               <div
                 key={p.id}
-                className="flex flex-wrap items-center gap-3 rounded-lg border border-[rgba(59,130,246,0.08)] bg-white/[0.02] px-3 py-2"
+                className="flex flex-wrap items-center gap-3 rounded-lg border border-[#F3F4F6] bg-white px-3 py-2"
               >
                 <Package className="h-4 w-4 shrink-0 text-[var(--accent-secondary)]" />
                 <span className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--color-text-primary)]">
                   {p.name}
                 </span>
-                <span className="rounded-full border border-[rgba(59,130,246,0.25)] bg-[rgba(59,130,246,0.1)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--accent-secondary)]">
+                <span className="rounded-full border border-[#E5E7EB] bg-[#F3F4F6] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--accent-secondary)]">
                   {TYPE_LABEL[p.product_type] ?? p.product_type}
                 </span>
                 {p.product_type === 'fisico' ? (
@@ -180,7 +182,7 @@ export function ProductsSettings() {
                         const v = e.target.value;
                         if (v !== String(p.quantity ?? '')) void updateQuantity(p, v);
                       }}
-                      className="w-20 rounded border border-[rgba(59,130,246,0.2)] bg-white/[0.03] px-2 py-1 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--accent-primary)]"
+                      className="w-20 rounded border border-[#E5E7EB] bg-white px-2 py-1 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--accent-primary)]"
                     />
                   </label>
                 ) : null}

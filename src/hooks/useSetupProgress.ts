@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
+import type { TrackedStepId } from '@/lib/startGuide';
 
-export type SetupStepId = 'funnel' | 'whatsapp' | 'team' | 'inbox';
+export type SetupStepId = TrackedStepId;
 
 export interface SetupProgress {
   loading: boolean;

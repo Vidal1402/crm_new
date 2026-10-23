@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import type { ActionType, Pipeline, Stage, Deal, Tag } from '@/types/crm';
+import { isStoryId, storyDealsOn, storyStages, storyWorkspace } from '@/lib/mock/story';
+import { cacheFresh, peekCache, setCache } from '@/lib/queryCache';
 
 const DEAL_SELECT =
   '*, contact:contact_id(id, name, phone, email, conversations(channel)), deal_tags(tag:tag_id(id, name, color)), deal_products(product:product_id(id, name)), custom_field_values(custom_field_id, value)';
@@ -62,12 +64,21 @@ interface UsePipelineResult {
   removeStage: (id: string, moveToStageId: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
+type BoardCache = { stages: Stage[]; deals: Deal[] };
+
+function rememberBoard(pipelineId: string, stages: Stage[], deals: Deal[]) {
+  setCache(`pipeline:board:${pipelineId}`, { stages, deals } satisfies BoardCache);
+}
+
 export function usePipeline(): UsePipelineResult {
-  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [stages, setStages] = useState<Stage[]>([]);
-  const [deals, setDeals] = useState<Deal[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cachedPipes = peekCache<Pipeline[]>('pipelines') ?? [];
+  const cachedSel = peekCache<string>('pipeline:selected') ?? null;
+  const cachedBoard = cachedSel ? peekCache<BoardCache>(`pipeline:board:${cachedSel}`) : undefined;
+  const [pipelines, setPipelines] = useState<Pipeline[]>(() => cachedPipes);
+  const [selectedId, setSelectedId] = useState<string | null>(() => cachedSel);
+  const [stages, setStages] = useState<Stage[]>(() => cachedBoard?.stages ?? []);
+  const [deals, setDeals] = useState<Deal[]>(() => cachedBoard?.deals ?? []);
+  const [loading, setLoading] = useState(() => !(cachedPipes.length > 0 && cachedBoard));
   const [error, setError] = useState<string | null>(null);
 
   const pipeline = useMemo(
@@ -84,40 +95,76 @@ export function usePipeline(): UsePipelineResult {
       .select('*')
       .eq('kind', 'comercial')
       .order('position');
-    if (err) {
-      setError(err.message);
-      return [] as Pipeline[];
-    }
     const list = (data ?? []) as Pipeline[];
+    if (err || list.length === 0) {
+      const board = storyWorkspace();
+      setCache('pipelines', [board.pipeline]);
+      setPipelines([board.pipeline]);
+      setSelectedId(board.pipeline.id);
+      setCache('pipeline:selected', board.pipeline.id);
+      return [board.pipeline];
+    }
+    setCache('pipelines', list);
     setPipelines(list);
     setSelectedId((cur) => {
-      if (cur && list.some((p) => p.id === cur)) return cur;
-      return (list.find((p) => p.is_default) ?? list[0])?.id ?? null;
+      const next =
+        cur && list.some((p) => p.id === cur)
+          ? cur
+          : (list.find((p) => p.is_default) ?? list[0])?.id ?? null;
+      if (next) setCache('pipeline:selected', next);
+      return next;
     });
     return list;
   }, []);
 
   // Carrega estágios + deals do funil selecionado.
-  const loadBoard = useCallback(async (pipelineId: string | null) => {
+  const loadBoard = useCallback(async (pipelineId: string | null, opts?: { force?: boolean }) => {
     if (!pipelineId) {
       setStages([]);
       setDeals([]);
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (isStoryId(pipelineId)) {
+      const board = storyWorkspace();
+      setStages(board.stages);
+      setDeals(board.deals);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+    const boardKey = `pipeline:board:${pipelineId}`;
+    if (!opts?.force && cacheFresh(boardKey)) {
+      const hit = peekCache<BoardCache>(boardKey);
+      if (hit) {
+        setStages(hit.stages);
+        setDeals(hit.deals);
+        setLoading(false);
+        return;
+      }
+    }
+    if (!peekCache(boardKey)) setLoading(true);
     const supabase = getSupabase();
     const [{ data: st }, { data: dl, error: dErr }] = await Promise.all([
       supabase.from('stages').select('*').eq('pipeline_id', pipelineId).order('position'),
       supabase.from('deals').select(DEAL_SELECT).eq('pipeline_id', pipelineId).order('created_at', { ascending: false }),
     ]);
     if (dErr) setError(dErr.message);
-    setStages((st ?? []) as Stage[]);
-    const dealRows = ((dl ?? []) as Record<string, unknown>[]).map(normalizeDeal);
+    let stagesLive = (st ?? []) as Stage[];
+    let dealRows = ((dl ?? []) as Record<string, unknown>[]).map(normalizeDeal);
+    if (dErr && dealRows.length === 0) {
+      stagesLive = storyStages(pipelineId);
+      dealRows = storyDealsOn(pipelineId, stagesLive);
+    } else if (!dErr) {
+      if (stagesLive.length === 0) stagesLive = storyStages(pipelineId);
+      const sample = storyDealsOn(pipelineId, stagesLive);
+      dealRows = [...sample.filter((deal) => !dealRows.some((row) => row.id === deal.id)), ...dealRows];
+    }
+    setStages(stagesLive);
 
     // Próxima ação pendente por deal (para o badge do card): a mais próxima de
     // cada negócio. Uma query só, reduzida ao 1º por deal_id (ordem por due_at).
-    const dealIds = dealRows.map((d) => d.id);
+    const dealIds = dealRows.map((d) => d.id).filter((id) => !isStoryId(id));
     if (dealIds.length) {
       const { data: acts } = await supabase
         .from('crm_activities')
@@ -135,6 +182,7 @@ export function usePipeline(): UsePipelineResult {
       for (const d of dealRows) d.next_action = soonest.get(d.id) ?? null;
     }
     setDeals(dealRows);
+    rememberBoard(pipelineId, stagesLive, dealRows);
     setLoading(false);
   }, []);
 
@@ -142,10 +190,14 @@ export function usePipeline(): UsePipelineResult {
     setError(null);
     const list = await loadPipelines();
     const target = (list.find((p) => p.id === selectedId) ?? list.find((p) => p.is_default) ?? list[0])?.id ?? null;
-    await loadBoard(target);
+    await loadBoard(target, { force: true });
   }, [loadPipelines, loadBoard, selectedId]);
 
   useEffect(() => {
+    if (cacheFresh('pipelines') && cachedSel && cacheFresh(`pipeline:board:${cachedSel}`)) {
+      setLoading(false);
+      return;
+    }
     void loadPipelines().then((list) => {
       const target = (list.find((p) => p.is_default) ?? list[0])?.id ?? null;
       void loadBoard(target);
@@ -159,11 +211,18 @@ export function usePipeline(): UsePipelineResult {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
-  const select = useCallback((id: string) => setSelectedId(id), []);
+  const select = useCallback((id: string) => {
+    setCache('pipeline:selected', id);
+    setSelectedId(id);
+  }, []);
+
+  useEffect(() => {
+    if (selectedId) rememberBoard(selectedId, stages, deals);
+  }, [selectedId, stages, deals]);
 
   // Realtime dos deals do funil ativo.
   useEffect(() => {
-    if (!selectedId) return;
+    if (!selectedId || isStoryId(selectedId)) return;
     const supabase = getSupabase();
     const channel = supabase
       .channel(`pipeline-${selectedId}-${Math.random().toString(36).slice(2, 8)}`)
@@ -190,6 +249,11 @@ export function usePipeline(): UsePipelineResult {
       const prevStageId = deals.find((d) => d.id === dealId)?.stage_id ?? null;
       setDeals((cur) => cur.map((d) => (d.id === dealId ? { ...d, stage_id: stageId } : d)));
       const stage = stages.find((s) => s.id === stageId);
+      if (isStoryId(dealId)) {
+        const status = stage?.is_won ? 'won' : stage?.is_lost ? 'lost' : 'open';
+        setDeals((cur) => cur.map((d) => (d.id === dealId ? { ...d, stage_id: stageId, status } : d)));
+        return;
+      }
       const patch: Partial<Deal> = { stage_id: stageId };
       if (stage?.is_won) patch.status = 'won';
       else if (stage?.is_lost) patch.status = 'lost';
@@ -218,6 +282,28 @@ export function usePipeline(): UsePipelineResult {
   const createDeal = useCallback<UsePipelineResult['createDeal']>(
     async (input) => {
       if (!selectedId) return;
+      if (isStoryId(selectedId)) {
+        setDeals((cur) => {
+          const sample = cur[0];
+          if (!sample) return cur;
+          return [{
+            ...sample,
+            id: `story-deal-novo-${Date.now()}`,
+            title: input.title,
+            contact_id: input.contact_id,
+            value: input.value ?? 0,
+            stage_id: input.stage_id,
+            status: 'open',
+            won_at: null,
+            lost_at: null,
+            products: [],
+            next_action: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }, ...cur];
+        });
+        return;
+      }
       const supabase = getSupabase();
       const { data, error: err } = await supabase
         .from('deals')

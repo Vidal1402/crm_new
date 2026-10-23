@@ -6,8 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { getSupabase } from '@/lib/supabase';
+import { isStoryId, mergeById, storyMembers } from '@/lib/mock/story';
 import { useAppUser } from '@/app/providers/AppUserProvider';
-import { PLANS, PLAN_ORDER, parsePlan, type CommercialPlan } from '@/lib/plans';
 
 type Role = 'admin' | 'operator';
 
@@ -35,12 +35,11 @@ interface MemberRow {
   user_id: string;
   email: string | null;
   accepted_at: string | null;
-  commercial_plan: CommercialPlan;
 }
 
 export function TeamSettings() {
-  const { userId, tenantRole, reloadPlan } = useAppUser();
-  const isOwner = tenantRole === 'admin';
+  const { userId, tenantRole, isSuperAdmin } = useAppUser();
+  const isOwner = tenantRole === 'admin' || isSuperAdmin;
 
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,29 +57,25 @@ export function TeamSettings() {
     const [membersRes, opsRes] = await Promise.all([
       supabase
         .from('app_users')
-        .select('id, role, user_id, accepted_at, commercial_plan')
+        .select('id, role, user_id, accepted_at')
         .order('invited_at', { ascending: true }),
       supabase.schema('whatsapp_hub').rpc('list_operators'),
     ]);
 
     if (membersRes.error) {
-      toast.error('Não foi possível carregar a equipe', {
-        description: membersRes.error.message,
-      });
+      setMembers(storyMembers());
     } else {
       const emailByUser = new Map<string, string>(
         ((opsRes.data ?? []) as { user_id: string; email: string }[]).map((o) => [o.user_id, o.email]),
       );
-      setMembers(
-        (membersRes.data ?? []).map((row) => ({
-          id: row.id as string,
-          role: row.role as Role,
-          user_id: row.user_id as string,
-          email: emailByUser.get(row.user_id as string) ?? null,
-          accepted_at: (row.accepted_at as string | null) ?? null,
-          commercial_plan: parsePlan((row as { commercial_plan?: unknown }).commercial_plan),
-        })),
-      );
+      const live = (membersRes.data ?? []).map((row) => ({
+        id: row.id as string,
+        role: row.role as Role,
+        user_id: row.user_id as string,
+        email: emailByUser.get(row.user_id as string) ?? null,
+        accepted_at: (row.accepted_at as string | null) ?? null,
+      }));
+      setMembers(mergeById(storyMembers(), live));
     }
 
     setLoading(false);
@@ -122,22 +117,8 @@ export function TeamSettings() {
     void loadAll();
   };
 
-  const handlePlanChange = async (member: MemberRow, next: CommercialPlan) => {
-    const supabase = getSupabase();
-    const { error } = await supabase
-      .from('app_users')
-      .update({ commercial_plan: next })
-      .eq('id', member.id);
-    if (error) {
-      toast.error('Não foi possível alterar o plano', { description: error.message });
-      return;
-    }
-    toast.success(`${member.email ?? 'Membro'} agora está no plano ${PLANS[next].name}.`);
-    if (member.user_id === userId) await reloadPlan();
-    void loadAll();
-  };
-
   const handleRemove = async (member: MemberRow) => {
+    if (isStoryId(member.user_id) || isStoryId(member.id)) return;
     const label = member.email ?? member.user_id;
     if (!window.confirm(`Remover ${label} da equipe? Esta ação é irreversível.`)) return;
 
@@ -163,11 +144,11 @@ export function TeamSettings() {
     <Card>
       <div className="space-y-6">
         <header className="space-y-1">
-          <h2 className="text-xl font-bold text-display">Equipe</h2>
+          <h2 className="text-xl font-bold text-display">Convidar equipe</h2>
           <p className="text-sm text-[var(--color-text-secondary)]">
             {isOwner
-              ? 'Convide novos membros por e-mail. O Supabase envia o convite e o membro define a senha pelo link.'
-              : 'Apenas o owner desta instância pode convidar membros.'}
+              ? 'Envie um e-mail para entrar como Admin ou Operador. A pessoa define a senha pelo link do convite.'
+              : 'Apenas o admin desta instância pode convidar membros.'}
           </p>
         </header>
 
@@ -194,7 +175,7 @@ export function TeamSettings() {
                 value={role}
                 onChange={(e) => setRole(e.target.value as Role)}
                 disabled={inviting}
-                className="h-11 w-full rounded-lg border border-[rgba(59,130,246,0.2)] bg-white/[0.03] px-4 text-sm text-[var(--color-text-primary)]"
+                className="h-11 w-full rounded-lg border border-[#E5E7EB] bg-white px-4 text-sm text-[var(--color-text-primary)]"
               >
                 <option value="admin">Admin</option>
                 <option value="operator">Operador</option>
@@ -227,7 +208,7 @@ export function TeamSettings() {
               Nenhum membro ainda.
             </div>
           ) : (
-            <ul className="divide-y divide-[rgba(59,130,246,0.08)] rounded-lg border border-[rgba(59,130,246,0.1)] bg-white/[0.02]">
+            <ul className="divide-y divide-[#F3F4F6] rounded-lg border border-[#F3F4F6] bg-white">
               {members.map((m) => (
                 <li
                   key={m.id}
@@ -252,22 +233,6 @@ export function TeamSettings() {
                     <span className="text-xs uppercase tracking-wide font-semibold text-[var(--accent-primary)]">
                       {m.role === 'admin' ? 'Owner' : 'Operador'}
                     </span>
-                    {isOwner ? (
-                      <select
-                        aria-label={`Plano de ${m.email ?? m.user_id}`}
-                        value={m.commercial_plan}
-                        onChange={(e) => void handlePlanChange(m, e.target.value as CommercialPlan)}
-                        className="h-8 max-w-[160px] rounded-lg border border-[rgba(59,130,246,0.2)] bg-white/[0.03] px-2 text-xs text-[var(--color-text-primary)]"
-                      >
-                        {PLAN_ORDER.map((p) => (
-                          <option key={p} value={p}>
-                            {PLANS[p].name} · R$ {PLANS[p].price}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span className="text-xs text-[var(--color-text-secondary)]">{PLANS[m.commercial_plan].name}</span>
-                    )}
                     {isOwner && m.user_id !== userId && (
                       <button
                         type="button"

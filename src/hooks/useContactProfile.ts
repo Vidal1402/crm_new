@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
+import { isStoryId, storyProfile } from '@/lib/mock/story';
 import type { Contact } from '@/types/db';
 import type { Message } from '@/types/inbox';
 import type { Deal } from '@/types/crm';
@@ -42,6 +43,15 @@ export function useContactProfile(id: string): UseContactProfileResult {
   const reload = useCallback(async () => {
     setLoading(true);
     setError(null);
+    if (isStoryId(id)) {
+      const profile = storyProfile(id);
+      setContact(profile.contact);
+      setDeals(profile.deals);
+      setTimeline(profile.timeline);
+      setError(profile.contact ? null : 'Conta de exemplo não encontrada.');
+      setLoading(false);
+      return;
+    }
     const supabase = getSupabase();
 
     const { data: c, error: cErr } = await supabase
@@ -138,6 +148,10 @@ export function useContactProfile(id: string): UseContactProfileResult {
     async (body: string) => {
       const text = body.trim();
       if (!text) return;
+      if (isStoryId(id)) {
+        setTimeline((cur) => [{ id: `story-note-${Date.now()}`, at: new Date().toISOString(), kind: 'note', label: 'Nota', text }, ...cur]);
+        return;
+      }
       const supabase = getSupabase();
       const { error: err } = await supabase
         .from('crm_activities')
@@ -153,6 +167,10 @@ export function useContactProfile(id: string): UseContactProfileResult {
 
   const saveContact = useCallback<UseContactProfileResult['saveContact']>(
     async (patch) => {
+      if (isStoryId(id)) {
+        setContact((cur) => (cur ? ({ ...cur, ...patch } as Contact) : cur));
+        return null;
+      }
       const supabase = getSupabase();
       setContact((cur) => (cur ? ({ ...cur, ...patch } as Contact) : cur));
       const { error: err } = await supabase

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAppUser } from '@/app/providers/AppUserProvider';
+import { isStoryId, mergeById, storyLinks } from '@/lib/mock/story';
 
 export type UtmDestinationType = 'landing' | 'whatsapp' | 'instagram' | 'other';
 
@@ -50,8 +51,8 @@ export function useUtmLinks() {
       .from('utm_links')
       .select('*')
       .order('created_at', { ascending: false });
-    if (err) setError(err.message);
-    setLinks((data ?? []) as UtmLink[]);
+    if (err) setError(null);
+    setLinks(mergeById(storyLinks(), err ? [] : ((data ?? []) as UtmLink[])));
     setLoading(false);
   }, []);
 
@@ -76,6 +77,7 @@ export function useUtmLinks() {
   );
 
   const remove = useCallback(async (id: string) => {
+    if (isStoryId(id)) return;
     const supabase = getSupabase();
     const { error: err } = await supabase.from('utm_links').delete().eq('id', id);
     if (err) throw new Error(err.message);

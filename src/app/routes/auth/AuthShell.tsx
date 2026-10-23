@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { appProductHint, appProductName } from '@/lib/app-flavor';
+import { TractionLogo } from '@/components/brand/TractionLogo';
+import { appProductHint } from '@/lib/app-flavor';
 
 interface AuthShellProps {
   title: string;
@@ -14,19 +15,9 @@ export function AuthShell({ title, subtitle, children, footer }: AuthShellProps)
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-md">
-        <div className="flex items-center justify-center mb-8">
-          <div className="flex items-center gap-3">
-            <img
-              src="/agentise-mark.png"
-              alt="Agentise"
-              className="h-12 w-12 rounded-xl shadow-[0_0_30px_rgba(59,130,246,0.35)]"
-            />
-            <div>
-              <div className="text-label">Agentise</div>
-              <div className="text-xl font-bold text-display">{appProductName()}</div>
-              <div className="text-[10px] text-[var(--color-text-secondary)] mt-0.5">{appProductHint()}</div>
-            </div>
-          </div>
+        <div className="flex flex-col items-center justify-center mb-8 gap-2">
+          <TractionLogo />
+          <div className="text-[10px] text-[var(--color-text-secondary)]">{appProductHint()}</div>
         </div>
 
         <div className="glass-card p-8 space-y-6">

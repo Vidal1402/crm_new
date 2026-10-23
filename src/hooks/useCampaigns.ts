@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAppUser } from '@/app/providers/AppUserProvider';
+import { isStoryId, mergeById, storyCampaigns } from '@/lib/mock/story';
+import { cacheFresh, peekCache, setCache } from '@/lib/queryCache';
 import type { AudienceFilter, Campaign, VariableSource } from '@/types/campaigns';
 import type { Contact } from '@/types/db';
 
@@ -75,21 +77,33 @@ async function resolveAudienceIds(filter: AudienceFilter): Promise<string[]> {
 
 export function useCampaigns(): UseCampaignsResult {
   const { userId } = useAppUser();
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = userId ? `campaigns:${userId}` : '';
+  const cached = cacheKey ? peekCache<Campaign[]>(cacheKey) : undefined;
+  const [campaigns, setCampaigns] = useState<Campaign[]>(() => cached ?? []);
+  const [loading, setLoading] = useState(() => !cached);
   const [error, setError] = useState<string | null>(null);
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (opts?: { force?: boolean }) => {
     if (!userId) return;
-    setLoading(true);
+    const key = `campaigns:${userId}`;
+    if (!opts?.force && cacheFresh(key)) {
+      const hit = peekCache<Campaign[]>(key);
+      if (hit) {
+        setCampaigns(hit);
+        setLoading(false);
+        return;
+      }
+    }
+    if (!peekCache(key)) setLoading(true);
     setError(null);
     const supabase = getSupabase();
     const { data, error: err } = await supabase
       .from('campaigns')
       .select('*')
       .order('created_at', { ascending: false });
-    if (err) setError(err.message);
-    else setCampaigns((data ?? []) as Campaign[]);
+    const next = mergeById(storyCampaigns(), err ? [] : ((data ?? []) as Campaign[]));
+    setCache(key, next);
+    setCampaigns(next);
     setLoading(false);
   }, [userId]);
 
@@ -116,7 +130,7 @@ export function useCampaigns(): UseCampaignsResult {
           table: 'campaigns',
         },
         () => {
-          void reload();
+          void reload({ force: true });
         },
       )
       .subscribe();
@@ -173,11 +187,12 @@ export function useCampaigns(): UseCampaignsResult {
       if (insErr) throw new Error(insErr.message);
     }
 
-    await reload();
+    await reload({ force: true });
     return { campaign: created, queued: contactIds.length };
   };
 
   const pause: UseCampaignsResult['pause'] = async (id) => {
+    if (isStoryId(id)) return;
     const supabase = getSupabase();
     const { error: err } = await supabase
       .from('campaigns')
@@ -187,10 +202,11 @@ export function useCampaigns(): UseCampaignsResult {
       setError(err.message);
       throw new Error(translateDbError(err.message));
     }
-    await reload();
+    await reload({ force: true });
   };
 
   const resume: UseCampaignsResult['resume'] = async (id) => {
+    if (isStoryId(id)) return;
     const supabase = getSupabase();
     const { error: err } = await supabase
       .from('campaigns')
@@ -200,17 +216,18 @@ export function useCampaigns(): UseCampaignsResult {
       setError(err.message);
       throw new Error(translateDbError(err.message));
     }
-    await reload();
+    await reload({ force: true });
   };
 
   const remove: UseCampaignsResult['remove'] = async (id) => {
+    if (isStoryId(id)) return;
     const supabase = getSupabase();
     const { error: err } = await supabase.schema('whatsapp_hub').from('campaigns').delete().eq('id', id);
     if (err) {
       setError(err.message);
       throw new Error(translateDbError(err.message));
     }
-    await reload();
+    await reload({ force: true });
   };
 
   return {

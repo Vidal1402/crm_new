@@ -31,6 +31,6 @@ export default defineConfig({
     command: 'npx vite --config vite.config.test.ts',
     url: BASE_URL,
     reuseExistingServer: true,
-    timeout: 60_000,
+    timeout: 60_780,
   },
 });

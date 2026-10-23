@@ -15,7 +15,7 @@ interface MessageThreadProps {
 function StatusTicks({ status, error }: { status: Message['meta_status']; error?: string | null }) {
   if (!status) return null;
   if (status === 'failed') return <span title={error ?? undefined} className="text-[var(--color-error)] text-[10px]">{error ? `falhou: ${error}` : 'falhou'}</span>;
-  if (status === 'read') return <CheckCheck className="h-3 w-3 text-[#3B82F6]" />;
+  if (status === 'read') return <CheckCheck className="h-3 w-3 text-[#22C55E]" />;
   if (status === 'delivered') return <CheckCheck className="h-3 w-3 opacity-60" />;
   return <Check className="h-3 w-3 opacity-60" />;
 }

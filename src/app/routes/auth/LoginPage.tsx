@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { getSupabase } from '@/lib/supabase';
+import { homePath, isSuperAdminRole } from '@/lib/home-path';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -46,7 +47,7 @@ export default function LoginPage() {
     }
     const { data } = await getSupabase().auth.getUser();
     const role = (data.user?.app_metadata as Record<string, unknown> | undefined)?.role;
-    navigate(role === 'super_admin' ? '/saas' : '/dashboard', { replace: true });
+    navigate(homePath(isSuperAdminRole(typeof role === 'string' ? role : null)), { replace: true });
   };
 
   // Esqueci minha senha: dispara o e-mail de recuperação do Supabase. O link

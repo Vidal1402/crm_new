@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
+import { cacheFresh, peekCache, setCache } from '@/lib/queryCache';
 
 // Forecast = pipeline em aberto ponderado pela probabilidade de cada estágio:
 //   Σ (deal.value × stage.probability / 100)  para deals status = 'open'.
@@ -27,12 +28,18 @@ function monthBounds(now: Date): { start: string; end: string } {
   return { start: iso(start), end: iso(end) };
 }
 
+const FORECAST_KEY = 'forecast';
+
 export function useForecast(): ForecastData {
-  const [data, setData] = useState<ForecastData>({
-    value: 0, openCount: 0, monthValue: 0, monthCount: 0, loading: true, error: null,
-  });
+  const cached = peekCache<Omit<ForecastData, 'loading' | 'error'>>(FORECAST_KEY);
+  const [data, setData] = useState<ForecastData>(() =>
+    cached
+      ? { ...cached, loading: false, error: null }
+      : { value: 0, openCount: 0, monthValue: 0, monthCount: 0, loading: true, error: null },
+  );
 
   useEffect(() => {
+    if (cacheFresh(FORECAST_KEY) && peekCache(FORECAST_KEY)) return;
     let cancelled = false;
     (async () => {
       try {
@@ -55,11 +62,11 @@ export function useForecast(): ForecastData {
             monthCount++;
           }
         }
-        if (!cancelled) {
-          setData({ value: Math.round(value), openCount, monthValue: Math.round(monthValue), monthCount, loading: false, error: null });
-        }
+        const next = { value: Math.round(value), openCount, monthValue: Math.round(monthValue), monthCount, loading: false, error: null };
+        setCache(FORECAST_KEY, { value: next.value, openCount: next.openCount, monthValue: next.monthValue, monthCount: next.monthCount });
+        if (!cancelled) setData(next);
       } catch (e) {
-        if (!cancelled) {
+        if (!cancelled && !peekCache(FORECAST_KEY)) {
           setData({ value: 0, openCount: 0, monthValue: 0, monthCount: 0, loading: false, error: e instanceof Error ? e.message : 'Erro ao carregar forecast' });
         }
       }

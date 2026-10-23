@@ -42,7 +42,7 @@ async function validateZernio(value: string) {
 export const setupConfig: SetupConfig = {
   toolName: 'WhatsApp Hub',
   toolSlug: 'whatsapp-hub',
-  postBootstrapRedirect: '/dashboard',
+  postBootstrapRedirect: '/funil',
   // O aluno conecta o WhatsApp dentro do Zernio (Embedded Signup) e informa
   // apenas a Zernio API Key. accountId/profileId/tier/numero sao resolvidos
   // server-side no salvar (api/zernio-connect). Nada da Meta e coletado aqui.

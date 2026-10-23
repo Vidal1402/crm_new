@@ -10,6 +10,7 @@ import {
 import type { Session, User } from '@supabase/supabase-js';
 import { getSupabase } from '@/lib/supabase';
 import { useSupabaseConfig } from '@/hooks/useSupabase';
+import { clearQueryCache } from '@/lib/queryCache';
 
 // ----------------------------------------------------------------------------
 // AuthProvider
@@ -97,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     const supabase = getSupabase();
     await supabase.auth.signOut();
+    clearQueryCache();
   }, []);
 
   const value = useMemo<AuthContextValue>(

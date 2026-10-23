@@ -25,10 +25,7 @@ import {
 } from '@/components/dashboard/widgets';
 import { LoadErrorBanner } from '@/components/LoadErrorBanner';
 import { SetupChecklist } from '@/components/setup/SetupChecklist';
-import { PlanLocked } from '@/components/plans/PlanLocked';
 import { cn } from '@/lib/utils';
-import { useAppUser } from '@/app/providers/AppUserProvider';
-import { hasPlanFeature } from '@/lib/plans';
 
 const NO_UTM = 'Sem dados de rastreio ainda.';
 
@@ -37,7 +34,6 @@ function isPeriodKey(v: string | null): v is PeriodKey {
 }
 
 export default function DashboardPage() {
-  const { plan } = useAppUser();
   const [params, setParams] = useSearchParams();
   const periodKey: PeriodKey = isPeriodKey(params.get('period')) ? (params.get('period') as PeriodKey) : '30d';
   const customFrom = params.get('from') ?? '';
@@ -81,14 +77,7 @@ export default function DashboardPage() {
     if (id) toast.success('Preferência salva.');
   };
 
-  const show = (key: WidgetKey) => {
-    if (visibleMap[key] === false) return false;
-    const origin: WidgetKey[] = ['origem_trafego', 'origem_canal', 'origem_campanha', 'origem_anuncios', 'origem_posts_organicos'];
-    const sales: WidgetKey[] = ['ranking_vendedores', 'forecast', 'tempo_primeira_resposta', 'tempo_conclusao'];
-    if (origin.includes(key) && !hasPlanFeature(plan, 'dashboard_origin')) return false;
-    if (sales.includes(key) && !hasPlanFeature(plan, 'dashboard_sales')) return false;
-    return true;
-  };
+  const show = (key: WidgetKey) => visibleMap[key] !== false;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -98,37 +87,35 @@ export default function DashboardPage() {
             <LayoutDashboard className="h-5 w-5 text-[var(--accent-primary)]" />
           </div>
           <div>
-            <div className="text-label">Seção</div>
-            <h1 className="text-2xl font-bold text-display">Dashboard</h1>
-            <p className="text-sm text-[var(--color-text-secondary)]">Vendas e atendimento</p>
+            <div className="text-label">Início → Setor Comercial</div>
+            <h1 className="text-2xl font-bold text-display">Setor Comercial,</h1>
+            <p className="text-sm text-[var(--color-text-secondary)]">Receita, leads e performance no mesmo portal.</p>
           </div>
         </div>
 
-        {hasPlanFeature(plan, 'dashboard_origin') && (
         <button
           type="button"
           onClick={() => setCustomizeOpen((v) => !v)}
-          className="flex items-center gap-1.5 rounded-lg border border-[rgba(59,130,246,0.2)] px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+          className="flex items-center gap-1.5 rounded-xl border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
         >
           <SlidersHorizontal className="h-3.5 w-3.5" />
           Personalizar dashboard
         </button>
-        )}
       </div>
 
       <SetupChecklist />
 
       {/* Filtro de período (global) */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1 rounded-lg border border-[rgba(59,130,246,0.12)] p-1 bg-white/[0.02]">
+        <div className="flex items-center gap-1 rounded-full border border-[#E5E7EB] bg-white p-1">
           {PERIOD_PRESETS.map((p) => (
             <button
               key={p.key}
               onClick={() => setPeriod(p.key)}
               className={cn(
-                'rounded-md px-3 py-1 text-xs font-semibold',
+                'rounded-full px-3 py-1 text-xs font-semibold',
                 periodKey === p.key
-                  ? 'bg-[var(--accent-primary)] text-white'
+                  ? 'bg-[#111827] text-white'
                   : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]',
               )}
             >
@@ -138,9 +125,9 @@ export default function DashboardPage() {
           <button
             onClick={() => setPeriod('custom')}
             className={cn(
-              'rounded-md px-3 py-1 text-xs font-semibold',
+              'rounded-full px-3 py-1 text-xs font-semibold',
               periodKey === 'custom'
-                ? 'bg-[var(--accent-primary)] text-white'
+                ? 'bg-[#111827] text-white'
                 : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]',
             )}
           >
@@ -153,27 +140,20 @@ export default function DashboardPage() {
               type="date"
               value={customFrom}
               onChange={(e) => setCustom('from', e.target.value)}
-              className="rounded-lg border border-[rgba(59,130,246,0.2)] bg-white/[0.03] px-2 py-1 text-xs text-[var(--color-text-primary)]"
+              className="rounded-xl border border-[#E5E7EB] bg-white px-2 py-1 text-xs text-[var(--color-text-primary)]"
             />
             <span className="text-xs text-[var(--color-text-secondary)]">até</span>
             <input
               type="date"
               value={customTo}
               onChange={(e) => setCustom('to', e.target.value)}
-              className="rounded-lg border border-[rgba(59,130,246,0.2)] bg-white/[0.03] px-2 py-1 text-xs text-[var(--color-text-primary)]"
+              className="rounded-xl border border-[#E5E7EB] bg-white px-2 py-1 text-xs text-[var(--color-text-primary)]"
             />
           </div>
         )}
       </div>
 
       {error && <LoadErrorBanner message={error} onRetry={() => void reload()} />}
-
-      {!hasPlanFeature(plan, 'dashboard_sales') && (
-        <PlanLocked feature="dashboard_sales" />
-      )}
-      {hasPlanFeature(plan, 'dashboard_sales') && !hasPlanFeature(plan, 'dashboard_origin') && (
-        <PlanLocked feature="dashboard_origin" />
-      )}
 
       {/* Painel de personalização */}
       {customizeOpen && (
@@ -186,7 +166,7 @@ export default function DashboardPage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
             {WIDGETS.map((w) => (
-              <label key={w.key} className="flex items-center gap-2 rounded-lg border border-[rgba(59,130,246,0.12)] bg-white/[0.02] px-3 py-2 cursor-pointer">
+              <label key={w.key} className="flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-3 py-2 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={show(w.key)}
@@ -206,7 +186,7 @@ export default function DashboardPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {show('vendas_ganhas') && (
-            <SalesKpiWidget title="Vendas ganhas" count={metrics.won.count} value={metrics.won.value} series={metrics.won.series} color="#10B981" />
+            <SalesKpiWidget title="Receita em Vendas" count={metrics.won.count} value={metrics.won.value} series={metrics.won.series} color="#22C55E" />
           )}
           {show('oportunidades_perdidas') && (
             <SalesKpiWidget title="Oportunidades perdidas" count={metrics.lost.count} value={metrics.lost.value} series={metrics.lost.series} color="#EF4444" />
@@ -238,7 +218,7 @@ export default function DashboardPage() {
             />
           )}
           {show('origem_trafego') && (
-            <OriginDonutWidget title="% Origem do tráfego" data={metrics.origin.traffic} labelMap={TRAFFIC_LABEL} emptyText={NO_UTM} />
+            <OriginDonutWidget title="Origem dos Leads" data={metrics.origin.traffic} labelMap={TRAFFIC_LABEL} emptyText={NO_UTM} />
           )}
           {show('origem_canal') && (
             <OriginBarsWidget title="% Canal de origem" data={metrics.origin.channel} labelMap={ORIGIN_CHANNEL_LABEL} emptyText={NO_UTM} />

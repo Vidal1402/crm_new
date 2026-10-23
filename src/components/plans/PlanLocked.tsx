@@ -8,13 +8,13 @@ export function PlanLocked({ feature }: { feature: PlanFeature }) {
 
   return (
     <div className="glass-card mx-auto max-w-xl p-8 text-center">
-      <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-2xl border border-[rgba(59,130,246,0.2)]">
+      <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-2xl border border-[#E5E7EB]">
         <Lock className="h-5 w-5 text-[var(--accent-primary)]" />
       </div>
       <div className="text-label">Plano {plan.name}</div>
       <h2 className="mt-1 text-2xl font-bold text-display">{copy.title}</h2>
       <p className="mx-auto mt-3 max-w-md text-sm text-[var(--color-text-secondary)]">{copy.body}</p>
-      <div className="mt-6 rounded-xl border border-[rgba(59,130,246,0.15)] bg-white/[0.03] px-4 py-3 text-sm">
+      <div className="mt-6 rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 text-sm">
         <div className="font-semibold text-[var(--color-text-primary)]">
           {plan.name} · {formatPlanPrice(needed)}
         </div>

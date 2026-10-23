@@ -4,47 +4,13 @@ import { Check, Circle, ListChecks, X } from 'lucide-react';
 import { useAppUser } from '@/app/providers/AppUserProvider';
 import { useSetupProgress, type SetupStepId } from '@/hooks/useSetupProgress';
 import { STORAGE_KEYS } from '@/lib/constants';
+import { coreSteps, guideEnded, isTrackedStep, writeFlag, type GuideStep } from '@/lib/startGuide';
 
-const STEPS: {
-  id: SetupStepId;
-  title: string;
-  hint: string;
-  to: string;
-  required: boolean;
-}[] = [
-  {
-    id: 'funnel',
-    title: 'Criar um funil comercial',
-    hint: 'Funil → Gerenciar funis. Sem isso o WhatsApp não consegue jogar leads no kanban.',
-    to: '/funil',
-    required: true,
-  },
-  {
-    id: 'whatsapp',
-    title: 'Conectar um número WhatsApp',
-    hint: 'Configurações → Credenciais. Zernio (oficial) ou Uazapi (não oficial).',
-    to: '/settings/profile',
-    required: true,
-  },
-  {
-    id: 'team',
-    title: 'Convidar a equipe',
-    hint: 'Opcional. Configurações → Equipe. O e-mail sai pelo Auth do Supabase.',
-    to: '/settings/profile',
-    required: false,
-  },
-  {
-    id: 'inbox',
-    title: 'Receber a primeira mensagem de teste',
-    hint: 'De outro celular, envie um WhatsApp para o número conectado e responda na Caixa.',
-    to: '/inbox',
-    required: false,
-  },
-];
+const STEPS: GuideStep[] = coreSteps();
 
 function isDismissed(): boolean {
   if (typeof window === 'undefined') return false;
-  return window.localStorage.getItem(STORAGE_KEYS.setupChecklistDismissed) === '1';
+  return guideEnded(window.localStorage);
 }
 
 export function SetupChecklist() {
@@ -55,19 +21,19 @@ export function SetupChecklist() {
   if (role !== 'admin' || hidden) return null;
   if (progress.loading) return null;
 
-  const done = {
+  const done: Record<SetupStepId, boolean> = {
     funnel: progress.funnelReady,
     whatsapp: progress.whatsappReady,
     team: progress.teamReady,
     inbox: progress.inboxReady,
   };
-  const requiredDone = STEPS.filter((s) => s.required).every((s) => done[s.id]);
+  const requiredDone = STEPS.filter((s) => s.required).every((s) => isTrackedStep(s.id) && done[s.id]);
   if (requiredDone && progress.inboxReady && progress.teamReady) return null;
 
-  const completed = STEPS.filter((s) => done[s.id]).length;
+  const completed = STEPS.filter((s) => isTrackedStep(s.id) && done[s.id]).length;
 
   const dismiss = () => {
-    window.localStorage.setItem(STORAGE_KEYS.setupChecklistDismissed, '1');
+    writeFlag(window.localStorage, STORAGE_KEYS.setupChecklistDismissed, true);
     setHidden(true);
   };
 
@@ -75,7 +41,7 @@ export function SetupChecklist() {
     <div className="glass-card p-5 sm:p-6">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[rgba(59,130,246,0.2)]">
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[#E5E7EB]">
             <ListChecks className="h-5 w-5 text-[var(--accent-primary)]" />
           </div>
           <div>
@@ -96,12 +62,12 @@ export function SetupChecklist() {
       </div>
       <ol className="space-y-2">
         {STEPS.map((step, index) => {
-          const ok = done[step.id];
+          const ok = isTrackedStep(step.id) && done[step.id];
           return (
             <li key={step.id}>
               <Link
                 to={step.to}
-                className="flex items-start gap-3 rounded-xl border border-[rgba(59,130,246,0.12)] bg-white/[0.02] px-3 py-3 transition hover:border-[rgba(59,130,246,0.35)]"
+                className="flex items-start gap-3 rounded-xl border border-[#E5E7EB] bg-white px-3 py-3 transition hover:border-[rgba(34,197,94,0.2)]"
               >
                 <span className="mt-0.5">
                   {ok ? (

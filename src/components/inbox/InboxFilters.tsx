@@ -39,8 +39,8 @@ function Chip({
       className={cn(
         'rounded-full px-3 py-1 text-xs font-semibold border transition-colors',
         active
-          ? 'border-[var(--accent-primary)] bg-[rgba(59,130,246,0.15)] text-[var(--color-text-primary)]'
-          : 'border-[rgba(59,130,246,0.15)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[rgba(59,130,246,0.35)]',
+          ? 'border-[var(--accent-primary)] bg-[#E5E7EB] text-[var(--color-text-primary)]'
+          : 'border-[#E5E7EB] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[rgba(34,197,94,0.2)]',
       )}
     >
       {children}
@@ -147,7 +147,7 @@ export function InboxFilters({ filters, onChange, operators, tags }: Props) {
         <select
           value={filters.assigned}
           onChange={(e) => set({ assigned: e.target.value })}
-          className="h-10 w-full rounded-lg border border-[rgba(59,130,246,0.2)] bg-white/[0.03] px-3 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--accent-primary)]"
+          className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--accent-primary)]"
         >
           <option value="any">Qualquer</option>
           <option value="unassigned">Não atribuído</option>
@@ -192,7 +192,7 @@ export function InboxFilters({ filters, onChange, operators, tags }: Props) {
         ))}
       </Section>
 
-      <div className="flex justify-end border-t border-[rgba(59,130,246,0.08)] pt-3">
+      <div className="flex justify-end border-t border-[#F3F4F6] pt-3">
         <button
           type="button"
           onClick={() => onChange({ ...DEFAULT_FILTERS })}
@@ -213,8 +213,8 @@ export function InboxFilters({ filters, onChange, operators, tags }: Props) {
         className={cn(
           'flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors',
           count > 0
-            ? 'border-[var(--accent-primary)] bg-[rgba(59,130,246,0.12)] text-[var(--color-text-primary)]'
-            : 'border-[rgba(59,130,246,0.2)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]',
+            ? 'border-[var(--accent-primary)] bg-[#E5E7EB] text-[var(--color-text-primary)]'
+            : 'border-[#E5E7EB] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]',
         )}
       >
         <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -242,7 +242,7 @@ export function InboxFilters({ filters, onChange, operators, tags }: Props) {
                   : undefined
               }
               className={cn(
-                'z-50 bg-[var(--color-bg-card)] border border-[rgba(59,130,246,0.25)] shadow-[0_0_40px_rgba(0,0,0,0.6)]',
+                'z-50 bg-[var(--color-bg-card)] border border-[#E5E7EB] shadow-[0_0_40px_rgba(0,0,0,0.6)]',
                 'fixed inset-x-0 bottom-0 max-h-[80vh] overflow-y-auto rounded-t-2xl',
                 'sm:inset-x-auto sm:bottom-auto sm:w-80 sm:rounded-xl',
                 'sm:top-[var(--pop-top)] sm:right-[var(--pop-right)]',

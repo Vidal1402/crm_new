@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAppUser } from '@/app/providers/AppUserProvider';
 import type { Conversation, ConversationStatus, ConversationWithContact } from '@/types/inbox';
+import { mergeById, storyConversations } from '@/lib/mock/story';
+import { cacheFresh, peekCache, setCache } from '@/lib/queryCache';
 
 interface UseConversationsResult {
   conversations: ConversationWithContact[];
@@ -26,17 +28,29 @@ interface ContactRow {
 
 export function useConversations(): UseConversationsResult {
   const { userId } = useAppUser();
-  const [conversations, setConversations] = useState<ConversationWithContact[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = userId ? `conversations:${userId}` : '';
+  const cached = cacheKey ? peekCache<ConversationWithContact[]>(cacheKey) : undefined;
+  const [conversations, setConversations] = useState<ConversationWithContact[]>(() => cached ?? []);
+  const [loading, setLoading] = useState(() => !cached);
   const [error, setError] = useState<string | null>(null);
 
   // reload({ silent: true }) atualiza os dados SEM ligar o spinner global — usado
   // pelos eventos de realtime para não “piscar” a lista (e apagar o resultado
   // filtrado) a cada mensagem que chega. O primeiro load e o retry manual usam
   // o spinner normalmente.
-  const reload = useCallback(async (opts?: { silent?: boolean }) => {
+  const reload = useCallback(async (opts?: { silent?: boolean; force?: boolean }) => {
     if (!userId) return;
-    if (!opts?.silent) setLoading(true);
+    const key = `conversations:${userId}`;
+    if (!opts?.force && cacheFresh(key)) {
+      const hit = peekCache<ConversationWithContact[]>(key);
+      if (hit) {
+        setConversations(hit);
+        setLoading(false);
+        return;
+      }
+    }
+    const silent = Boolean(opts?.silent || peekCache(key));
+    if (!silent) setLoading(true);
     setError(null);
     const supabase = getSupabase();
 
@@ -50,13 +64,14 @@ export function useConversations(): UseConversationsResult {
       .select('*, number:whatsapp_channel_id(name,phone)')
       .in('channel', ['whatsapp', 'uazapi'])
       .order('last_message_at', { ascending: false, nullsFirst: false });
+    const rows = (convs ?? []) as Conversation[];
     if (err) {
-      setError(err.message);
+      const demo = storyConversations();
+      setCache(key, demo);
+      setConversations(demo);
       setLoading(false);
       return;
     }
-
-    const rows = (convs ?? []) as Conversation[];
     const contactIds = Array.from(new Set(rows.map((c) => c.contact_id)));
     const conversationIds = rows.map((c) => c.id);
 
@@ -128,7 +143,9 @@ export function useConversations(): UseConversationsResult {
       lastInboundAt: lastInboundByConv.get(c.id) ?? null,
     }));
 
-    setConversations(merged);
+    const withSample = mergeById(storyConversations(), merged);
+    setCache(key, withSample);
+    setConversations(withSample);
     setLoading(false);
   }, [userId]);
 
@@ -148,7 +165,7 @@ export function useConversations(): UseConversationsResult {
     const suffix = Math.random().toString(36).slice(2, 10);
     const scheduleReload = () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => { void reload({ silent: true }); }, 400);
+      debounceRef.current = setTimeout(() => { void reload({ silent: true, force: true }); }, 400);
     };
     const channel = supabase
       .channel(`inbox:${suffix}`)

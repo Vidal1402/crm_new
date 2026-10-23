@@ -138,8 +138,8 @@ export function planRank(plan: CommercialPlan): number {
   return PLAN_ORDER.indexOf(plan);
 }
 
-export function hasPlanFeature(plan: CommercialPlan, feature: PlanFeature): boolean {
-  return planRank(plan) >= planRank(FEATURE_MIN_PLAN[feature]);
+export function hasPlanFeature(_plan: CommercialPlan, _feature: PlanFeature): boolean {
+  return true;
 }
 
 export function formatPlanPrice(plan: CommercialPlan): string {

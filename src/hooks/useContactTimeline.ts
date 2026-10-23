@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
+import { isStoryId, storyTimeline } from '@/lib/mock/story';
 import { ACTION_TYPE_LABEL, type ActionType } from '@/types/crm';
 
 export type TimelineEntryKind =
@@ -44,6 +45,11 @@ export function useContactTimeline(contactId: string) {
     if (!contactId) return;
     setLoading(true);
     setError(null);
+    if (isStoryId(contactId)) {
+      setGroups(storyTimeline(contactId));
+      setLoading(false);
+      return;
+    }
     const supabase = getSupabase();
 
     // Conversas do contato (todos os canais) e deals (para o histórico de estágio).
@@ -220,6 +226,17 @@ export function useContactTimeline(contactId: string) {
     async (date: string, text: string) => {
       const body = text.trim();
       if (!body || !contactId) return;
+      if (isStoryId(contactId)) {
+        setGroups((cur) => {
+          const entry = { id: `story-note-${Date.now()}`, kind: 'nota' as const, label: 'Nota', text: body, at: `${date}T15:00:00.000Z` };
+          const next = cur.map((group) => ({ ...group, entries: [...group.entries] }));
+          const group = next.find((item) => item.date === date);
+          if (group) group.entries = [entry, ...group.entries];
+          else next.unshift({ date, entries: [entry] });
+          return next;
+        });
+        return;
+      }
       const supabase = getSupabase();
       const { data: u } = await supabase.auth.getUser();
       const authorId = u?.user?.id ?? null;

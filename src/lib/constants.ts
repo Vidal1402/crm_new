@@ -6,4 +6,7 @@ export const STORAGE_KEYS = {
   supabaseUrl: 'supabase_url',
   supabaseAnonKey: 'supabase_anon_key',
   setupChecklistDismissed: 'agentise.setup_checklist.dismissed',
+  startGuideNoticeDismissed: 'agentise.start_guide.notice_dismissed',
+  indicatorBoard: 'agentise.indicator_board',
+  periodBoardNotice: 'agentise.period_board.notice',
 } as const;

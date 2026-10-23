@@ -80,7 +80,7 @@ export function AccountSettings() {
               Preferência salva neste navegador.
             </p>
           </header>
-          <label className="flex items-center gap-3 rounded-lg border border-[rgba(59,130,246,0.15)] bg-white/[0.02] px-4 py-3 cursor-pointer">
+          <label className="flex items-center gap-3 rounded-lg border border-[#E5E7EB] bg-white px-4 py-3 cursor-pointer">
             <input
               type="checkbox"
               checked={soundEnabled}

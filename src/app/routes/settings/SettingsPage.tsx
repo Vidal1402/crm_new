@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   KeyRound,
   Package,
@@ -15,7 +15,6 @@ import { TeamSettings } from './sections/TeamSettings';
 import { LeadAssignmentSettings } from './sections/LeadAssignmentSettings';
 import { ProductsSettings } from './sections/ProductsSettings';
 import CredentialsPage from './CredentialsPage';
-import { FeatureGate } from '@/components/plans/FeatureGate';
 
 type TabId =
   | 'account'
@@ -33,8 +32,13 @@ interface TabDef {
 }
 
 export default function SettingsPage() {
-  const { tenantRole } = useAppUser();
-  const [active, setActive] = useState<TabId>('credentials');
+  const { tenantRole, isSuperAdmin } = useAppUser();
+  const canManageTeam = tenantRole === 'admin' || isSuperAdmin;
+  const [active, setActive] = useState<TabId>(canManageTeam ? 'team' : 'account');
+
+  useEffect(() => {
+    if (canManageTeam) setActive((cur) => (cur === 'account' ? 'team' : cur));
+  }, [canManageTeam]);
 
   const tabs: TabDef[] = useMemo(
     () =>
@@ -50,15 +54,13 @@ export default function SettingsPage() {
           {
             id: 'team',
             label: 'Equipe',
-            hint: 'Convites e roles',
+            hint: 'Convidar admin ou operador',
             icon: Users,
             adminOnly: true,
             render: () => (
               <div className="space-y-6">
                 <TeamSettings />
-                <FeatureGate feature="lead_assignment">
-                  <LeadAssignmentSettings />
-                </FeatureGate>
+                <LeadAssignmentSettings />
               </div>
             ),
           },
@@ -68,11 +70,7 @@ export default function SettingsPage() {
             hint: 'Catálogo atribuível a leads',
             icon: Package,
             adminOnly: true,
-            render: () => (
-              <FeatureGate feature="settings_products">
-                <ProductsSettings />
-              </FeatureGate>
-            ),
+            render: () => <ProductsSettings />,
           },
           {
             id: 'credentials',
@@ -83,8 +81,8 @@ export default function SettingsPage() {
             render: () => <CredentialsPage />,
           },
         ] as TabDef[]
-      ).filter((t) => !t.adminOnly || tenantRole === 'admin'),
-    [tenantRole],
+      ).filter((t) => !t.adminOnly || canManageTeam),
+    [canManageTeam],
   );
 
   // Operador só enxerga "Conta"; admin vê tudo. Garante que a aba ativa
@@ -101,7 +99,7 @@ export default function SettingsPage() {
           <div className="text-label">Seção</div>
           <h1 className="text-2xl font-bold text-display">Configurações</h1>
           <p className="text-sm text-[var(--color-text-secondary)]">
-            Conta, equipe e credenciais
+            Conta, convites de equipe e credenciais
           </p>
         </div>
       </div>
@@ -120,8 +118,8 @@ export default function SettingsPage() {
                   className={cn(
                     'flex items-center gap-3 p-2.5 rounded-lg text-left transition-colors',
                     isActive
-                      ? 'bg-[rgba(59,130,246,0.1)] text-[var(--color-text-primary)]'
-                      : 'text-[var(--color-text-secondary)] hover:bg-white/[0.03]',
+                      ? 'bg-[#F3F4F6] text-[var(--color-text-primary)]'
+                      : 'text-[var(--color-text-secondary)] hover:bg-white',
                   )}
                 >
                   <Icon className="h-4 w-4 shrink-0" />

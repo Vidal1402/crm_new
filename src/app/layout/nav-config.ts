@@ -1,13 +1,22 @@
 import {
   LayoutDashboard,
   Inbox,
-  Megaphone,
-  Users,
   Settings,
   type LucideIcon,
-  SquareKanban,
   Building2,
   Shield,
+  BookOpen,
+  LineChart,
+  PieChart,
+  MapPin,
+  ListChecks,
+  FileText,
+  Target,
+  CalendarDays,
+  Compass,
+  Users,
+  Gauge,
+  SquareKanban,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -15,23 +24,30 @@ export interface NavItem {
   label: string;
   icon: LucideIcon;
   adminOnly?: boolean;
+  comingSoon?: boolean;
 }
 
-// Single source of truth for both the Sidebar and the router. Adding a new
-// app section is a one-liner here.
-// Base de Conhecimento, Follow-ups e Horário de atendimento viraram abas dentro
-// de /ai-agent. Credenciais virou aba dentro de Configurações. Templates virou
-// aba dentro de /campaigns (Módulo 1).
 export const PLATFORM_NAV_ITEMS: NavItem[] = [
-  { to: '/saas', label: 'Clientes', icon: Building2 },
-  { to: '/saas/admins', label: 'Acesso', icon: Shield },
+  { to: '/saas', label: 'Clientes', icon: Building2, comingSoon: true },
+  { to: '/saas/admins', label: 'Acesso', icon: Shield, comingSoon: true },
 ];
 
-export const NAV_ITEMS: NavItem[] = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/inbox', label: 'Caixa de entrada', icon: Inbox },
-  { to: '/funil', label: 'Funis', icon: SquareKanban },
+export const TOP_NAV_ITEMS: NavItem[] = [
+  { to: '/funil', label: 'Funil', icon: SquareKanban },
+  { to: '/painel', label: 'Painel', icon: Gauge },
+  { to: '/prospeccao', label: 'Prospecção', icon: MapPin },
+  { to: '/sala-de-guerra', label: 'Sala de Guerra', icon: LayoutDashboard },
+  { to: '/operacao', label: 'Operação', icon: ListChecks },
+  { to: '/propostas', label: 'Propostas', icon: FileText },
   { to: '/contacts', label: 'Contatos', icon: Users },
-  { to: '/campaigns', label: 'Disparos em massa', icon: Megaphone },
+  { to: '/performance', label: 'Performance', icon: LineChart },
+  { to: '/indicadores', label: 'Indicadores', icon: PieChart },
+  { to: '/metas', label: 'Metas', icon: Target },
+  { to: '/conversas', label: 'Conversas', icon: Inbox },
+  { to: '/agenda', label: 'Agenda', icon: CalendarDays },
+  { to: '/playbooks', label: 'Playbooks', icon: BookOpen },
+  { to: '/roteiro', label: 'Roteiro', icon: Compass },
   { to: '/settings/profile', label: 'Configurações', icon: Settings },
 ];
+
+export const NAV_ITEMS: NavItem[] = TOP_NAV_ITEMS;

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAppUser } from '@/app/providers/AppUserProvider';
+import { isStoryId, mergeById, storyTemplates } from '@/lib/mock/story';
+import { cacheFresh, peekCache, setCache } from '@/lib/queryCache';
 import type { Template } from '@/types/templates';
 
 interface UseTemplatesResult {
@@ -15,21 +17,33 @@ interface UseTemplatesResult {
 
 export function useTemplates(): UseTemplatesResult {
   const { userId } = useAppUser();
-  const [templates, setTemplates] = useState<Template[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = userId ? `templates:${userId}` : '';
+  const cached = cacheKey ? peekCache<Template[]>(cacheKey) : undefined;
+  const [templates, setTemplates] = useState<Template[]>(() => cached ?? []);
+  const [loading, setLoading] = useState(() => !cached);
   const [error, setError] = useState<string | null>(null);
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (opts?: { force?: boolean }) => {
     if (!userId) return;
-    setLoading(true);
+    const key = `templates:${userId}`;
+    if (!opts?.force && cacheFresh(key)) {
+      const hit = peekCache<Template[]>(key);
+      if (hit) {
+        setTemplates(hit);
+        setLoading(false);
+        return;
+      }
+    }
+    if (!peekCache(key)) setLoading(true);
     setError(null);
     const supabase = getSupabase();
     const { data, error: err } = await supabase
       .from('templates')
       .select('*')
       .order('created_at', { ascending: false });
-    if (err) setError(err.message);
-    else setTemplates((data ?? []) as Template[]);
+    const next = mergeById(storyTemplates(), err ? [] : ((data ?? []) as Template[]));
+    setCache(key, next);
+    setTemplates(next);
     setLoading(false);
   }, [userId]);
 
@@ -49,7 +63,7 @@ export function useTemplates(): UseTemplatesResult {
       setError(err.message);
       throw new Error(translateDbError(err.message));
     }
-    await reload();
+    await reload({ force: true });
     return data as Template;
   };
 
@@ -60,17 +74,18 @@ export function useTemplates(): UseTemplatesResult {
       setError(err.message);
       throw new Error(translateDbError(err.message));
     }
-    await reload();
+    await reload({ force: true });
   };
 
   const remove: UseTemplatesResult['remove'] = async (id) => {
+    if (isStoryId(id)) return;
     const supabase = getSupabase();
     const { error: err } = await supabase.schema('whatsapp_hub').from('templates').delete().eq('id', id);
     if (err) {
       setError(err.message);
       throw new Error(translateDbError(err.message));
     }
-    await reload();
+    await reload({ force: true });
   };
 
   return { templates, loading, error, reload, create, update, remove };

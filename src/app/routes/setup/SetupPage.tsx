@@ -54,8 +54,8 @@ function PrimaryButton(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
       {...props}
       className={[
         'min-h-12 rounded-xl px-8 py-4 text-base font-medium text-white transition-[box-shadow,opacity,transform] duration-[400ms] ease-[cubic-bezier(0.4,0,0.2,1)]',
-        'bg-[linear-gradient(135deg,#1E3A8A_0%,#3B82F6_100%)] shadow-[0_8px_40px_rgba(59,130,246,0.4),0_0_60px_rgba(59,130,246,0.2)]',
-        'hover:shadow-[0_8px_50px_rgba(59,130,246,0.6),0_0_80px_rgba(59,130,246,0.3)] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none',
+        'bg-[#111827] shadow-sm hover:bg-black',
+        'disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none',
         'w-full sm:w-auto',
         props.className ?? '',
       ].join(' ')}
@@ -77,10 +77,10 @@ function StepIndicator({ step }: { step: Step }) {
                 className={[
                   'flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold',
                   active
-                    ? 'bg-[#3B82F6] text-white shadow-[0_0_30px_rgba(59,130,246,0.5)]'
+                    ? 'bg-[#22C55E] text-white'
                     : complete
-                      ? 'bg-[#1E3A8A] text-white'
-                      : 'border border-[rgba(59,130,246,0.3)] bg-transparent text-[var(--color-text-secondary)]',
+                      ? 'bg-[#111827] text-white'
+                      : 'border border-[#E5E7EB] bg-white text-[var(--color-text-secondary)]',
                 ].join(' ')}
               >
                 {complete ? <Check className="h-4 w-4" /> : n}
@@ -95,7 +95,7 @@ function StepIndicator({ step }: { step: Step }) {
               </div>
             </div>
             {index < STEP_LABELS.length - 1 ? (
-              <div className="mx-2 mt-5 h-px w-8 border-t border-[rgba(59,130,246,0.2)] sm:mx-5 sm:w-20" />
+              <div className="mx-2 mt-5 h-px w-8 border-t border-[#E5E7EB] sm:mx-5 sm:w-20" />
             ) : null}
           </div>
         );
@@ -106,7 +106,7 @@ function StepIndicator({ step }: { step: Step }) {
 
 function SetupCard({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-[rgba(59,130,246,0.15)] bg-white/[0.02] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-[40px] md:p-12">
+    <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-[40px] md:p-12">
       {children}
     </div>
   );
@@ -126,9 +126,9 @@ function PrepItem({
   pills: string[];
 }) {
   return (
-    <div className="relative rounded-xl border border-[rgba(59,130,246,0.12)] bg-white/[0.02] p-5">
+    <div className="relative rounded-xl border border-[#E5E7EB] bg-white p-5">
       <div className="flex gap-4 pr-16">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[rgba(59,130,246,0.4)] text-sm font-medium text-[var(--accent-secondary)]">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[rgba(34,197,94,0.2)] text-sm font-medium text-[var(--accent-secondary)]">
           {n}
         </div>
         <div>
@@ -138,7 +138,7 @@ function PrepItem({
             {pills.map((pill) => (
               <span
                 key={pill}
-                className="rounded-full border border-[rgba(59,130,246,0.3)] bg-[rgba(30,58,138,0.4)] px-3 py-1 font-mono text-[11px] uppercase tracking-[0.05em] text-[var(--accent-secondary)]"
+                className="rounded-full border border-[rgba(34,197,94,0.18)] bg-[rgba(30,58,138,0.4)] px-3 py-1 font-mono text-[11px] uppercase tracking-[0.05em] text-[var(--accent-secondary)]"
               >
                 {pill}
               </span>
@@ -287,7 +287,7 @@ export default function SetupPage() {
           const res = await fetch(`${window.location.origin}/api/health`, { cache: 'no-store' });
           if (res.ok) {
             setTimeline(TIMELINE_STEPS.map((entry) => entry.label));
-            window.localStorage.removeItem(STORAGE_KEY); window.location.href = '/dashboard';
+            window.localStorage.removeItem(STORAGE_KEY); window.location.href = '/funil';
             return;
           }
         } catch {
@@ -370,7 +370,7 @@ export default function SetupPage() {
         <SetupCard>
           {step === 1 ? (
             <>
-              <h1 className="mb-2 text-[28px] font-semibold text-[var(--color-text-primary)]">Agentise CRM</h1>
+              <h1 className="mb-2 text-[28px] font-semibold text-[var(--color-text-primary)]">traction. by United</h1>
               <p className="mb-8 text-base leading-[1.6] text-[var(--color-text-secondary)]">
                 Antes de iniciar, deixe abertas as contas onde voce vai copiar os tokens de bootstrap.
               </p>
@@ -410,7 +410,7 @@ export default function SetupPage() {
                             setCore((prev) => ({ ...prev, [key]: next }));
                           }}
                           autoComplete={key === 'owner_password' ? 'new-password' : 'off'}
-                          className="w-full rounded-lg border border-[rgba(59,130,246,0.2)] bg-white/[0.03] px-4 py-3 pr-16 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-secondary)] focus:border-[#3B82F6] focus:outline-none focus:shadow-[0_0_20px_rgba(59,130,246,0.2)]"
+                          className="w-full rounded-lg border border-[#E5E7EB] bg-white px-4 py-3 pr-16 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-secondary)] focus:border-[#22C55E] focus:outline-none focus:shadow-[0_0_20px_#E5E7EB]"
                         />
                         <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-2">
                           {isSecret ? (
@@ -439,7 +439,7 @@ export default function SetupPage() {
                 <button
                   type="button"
                   onClick={() => setStep(1)}
-                  className="min-h-11 w-full rounded-lg border border-[rgba(59,130,246,0.25)] bg-white/[0.03] px-5 text-sm font-medium text-[var(--color-text-primary)] transition hover:border-[#3B82F6] sm:w-auto"
+                  className="min-h-11 w-full rounded-lg border border-[#E5E7EB] bg-white px-5 text-sm font-medium text-[var(--color-text-primary)] transition hover:border-[#22C55E] sm:w-auto"
                 >
                   Voltar
                 </button>
@@ -458,7 +458,7 @@ export default function SetupPage() {
               </p>
               <div className="space-y-3">
                 {TIMELINE_STEPS.map((entry) => (
-                  <div key={entry.label} className="flex items-center gap-3 rounded-xl border border-[rgba(59,130,246,0.12)] bg-white/[0.02] p-4">
+                  <div key={entry.label} className="flex items-center gap-3 rounded-xl border border-[#E5E7EB] bg-white p-4">
                     {timeline.includes(entry.label) ? <Check className="h-5 w-5 text-[#10B981]" /> : <Loader2 className="h-5 w-5 animate-spin text-[var(--accent-secondary)]" />}
                     <span className="text-sm text-[var(--color-text-primary)]">{entry.label}</span>
                   </div>
@@ -488,11 +488,11 @@ export default function SetupPage() {
                     <button
                       type="button"
                       onClick={() => void waitForAppLive()}
-                      className="min-h-11 rounded-lg border border-[rgba(59,130,246,0.25)] bg-white/[0.03] px-5 text-sm font-medium text-[var(--color-text-primary)] transition hover:border-[#3B82F6]"
+                      className="min-h-11 rounded-lg border border-[#E5E7EB] bg-white px-5 text-sm font-medium text-[var(--color-text-primary)] transition hover:border-[#22C55E]"
                     >
                       Verificar de novo
                     </button>
-                    <PrimaryButton onClick={() => { window.localStorage.removeItem(STORAGE_KEY); window.location.href = '/dashboard'; }}>
+                    <PrimaryButton onClick={() => { window.localStorage.removeItem(STORAGE_KEY); window.location.href = '/funil'; }}>
                       Continuar mesmo assim
                     </PrimaryButton>
                   </div>
@@ -510,7 +510,7 @@ export default function SetupPage() {
                         onChange={(event) => setCore((prev) => ({ ...prev, owner_password: event.target.value }))}
                         placeholder="senha do owner"
                         autoComplete="current-password"
-                        className="w-full rounded-lg border border-[rgba(59,130,246,0.2)] bg-white/[0.03] px-4 py-3 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-secondary)] focus:border-[#3B82F6] focus:outline-none focus:shadow-[0_0_20px_rgba(59,130,246,0.2)]"
+                        className="w-full rounded-lg border border-[#E5E7EB] bg-white px-4 py-3 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-secondary)] focus:border-[#22C55E] focus:outline-none focus:shadow-[0_0_20px_#E5E7EB]"
                       />
                     </div>
                   ) : null}

@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { useSupabaseConfig } from '@/hooks/useSupabase';
 import { getSupabase } from '@/lib/supabase';
+import { homePath, isSuperAdminRole } from '@/lib/home-path';
 
 // ----------------------------------------------------------------------------
 // Invite — aceite de convite nativo do Supabase.
@@ -56,7 +57,7 @@ export default function InvitePage() {
     toast.success('Conta ativada. Bem-vindo!');
     const { data } = await supabase.auth.getUser();
     const role = (data.user?.app_metadata as Record<string, unknown> | undefined)?.role;
-    navigate(role === 'super_admin' ? '/saas' : '/dashboard', { replace: true });
+    navigate(homePath(isSuperAdminRole(typeof role === 'string' ? role : null)), { replace: true });
   };
 
   if (!configured) {

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { type PeriodRange } from '@/lib/dashboard';
+import { storyMetrics } from '@/lib/mock/story';
+import { cacheFresh, peekCache, setCache } from '@/lib/queryCache';
 
 // ============================================================================
 // Métricas do Dashboard.
@@ -9,106 +11,6 @@ import { type PeriodRange } from '@/lib/dashboard';
 // Credenciais → Configurações Avançadas), exibe dados fictícios — apenas
 // para demonstração visual da plataforma.
 // ============================================================================
-
-function generateFakeMetrics(range: PeriodRange): SalesMetrics {
-  const dayMs = 86400000;
-  const rangeDays = Math.max(1, Math.round((range.to.getTime() - range.from.getTime()) / dayMs));
-
-  const series: DaySeriesPoint[] = [];
-  for (let i = 0; i < rangeDays; i++) {
-    const d = new Date(range.from.getTime() + i * dayMs);
-    series.push({
-      day: d.toISOString().slice(0, 10),
-      value: Math.round((3 + Math.random() * 8) * 100) * 100,
-      count: Math.floor(1 + Math.random() * 5),
-    });
-  }
-
-  const wonCount = series.reduce((s, p) => s + p.count, 0);
-  const wonValue = series.reduce((s, p) => s + p.value, 0);
-
-  const lostSeries = series.map((p) => ({
-    day: p.day,
-    value: Math.round(p.value * 0.2 * Math.random()),
-    count: Math.max(0, Math.floor(p.count * 0.3 * Math.random())),
-  }));
-  const lostCount = lostSeries.reduce((s, p) => s + p.count, 0);
-  const lostValue = lostSeries.reduce((s, p) => s + p.value, 0);
-
-  const owners = [
-    { id: 'u1', name: 'Ana Silva' },
-    { id: 'u2', name: 'Carlos Oliveira' },
-    { id: 'u3', name: 'Mariana Santos' },
-    { id: 'u4', name: 'Rafael Costa' },
-  ];
-
-  const ranking = owners.map((o) => ({
-    owner_id: o.id,
-    value: Math.round((5000 + Math.random() * 45000) / 100) * 100,
-    count: Math.floor(3 + Math.random() * 20),
-  })).sort((a, b) => b.value - a.value);
-
-  const byOwner = owners.map((o) => ({
-    owner_id: o.id,
-    ms: Math.round(1800000 + Math.random() * 7200000),
-    count: Math.floor(3 + Math.random() * 15),
-  }));
-
-  const closeByOwner = owners.map((o) => ({
-    owner_id: o.id,
-    ms: Math.round(43200000 + Math.random() * 259200000),
-    count: Math.floor(3 + Math.random() * 15),
-  }));
-
-  return {
-    won: { count: wonCount, value: wonValue, series },
-    lost: {
-      count: lostCount,
-      value: lostValue,
-      series: lostSeries,
-      reasons: [
-        { name: 'Preço', value: 0, count: 4 },
-        { name: 'Concorrência', value: 0, count: 3 },
-        { name: 'Timing', value: 0, count: 2 },
-        { name: 'Sem motivo', value: 0, count: 1 },
-      ],
-    },
-    ranking,
-    forecast: { value: Math.round((85000 + Math.random() * 65000) / 100) * 100, openCount: 12 },
-    firstResponse: { avgMs: 3600000 + Math.round(Math.random() * 3600000), byOwner },
-    closeTime: { avgMs: 172800000 + Math.round(Math.random() * 259200000), byOwner: closeByOwner },
-    origin: {
-      hasData: true,
-      traffic: [
-        { name: 'organico', value: 0, count: 28 },
-        { name: 'pago', value: 0, count: 15 },
-        { name: 'manual', value: 0, count: 7 },
-      ],
-      channel: [
-        { name: 'instagram_ads', value: 0, count: 18 },
-        { name: 'google_ads', value: 0, count: 12 },
-        { name: 'facebook_ads', value: 0, count: 8 },
-        { name: 'linkedin_ads', value: 0, count: 5 },
-        { name: 'tiktok_ads', value: 0, count: 3 },
-      ],
-      campaign: [
-        { name: 'Lancamento Q3', value: 0, count: 10 },
-        { name: 'Reactivacao', value: 0, count: 6 },
-        { name: 'Promo Julho', value: 0, count: 4 },
-      ],
-      ads: [
-        { name: 'Meta Ads - Lead', value: 0, count: 8 },
-        { name: 'Google Ads - Search', value: 0, count: 5 },
-        { name: 'TikTok Ads - View', value: 0, count: 3 },
-      ],
-      organicPosts: [
-        { name: 'Post carrossel', value: 0, count: 6 },
-        { name: 'Reels tutorial', value: 0, count: 4 },
-        { name: 'Story promoção', value: 0, count: 3 },
-      ],
-    },
-  };
-}
 
 export interface NameCount {
   name: string;
@@ -304,13 +206,28 @@ async function loadRealMetrics(range: PeriodRange): Promise<SalesMetrics> {
   };
 }
 
+function dashboardCacheKey(range: PeriodRange) {
+  return `salesDashboard:${range.from.toISOString().slice(0, 10)}:${range.to.toISOString().slice(0, 10)}`;
+}
+
 export function useSalesDashboard(range: PeriodRange) {
-  const [metrics, setMetrics] = useState<SalesMetrics>(EMPTY);
-  const [loading, setLoading] = useState(true);
+  const key = dashboardCacheKey(range);
+  const cached = peekCache<SalesMetrics>(key);
+  const [metrics, setMetrics] = useState<SalesMetrics>(() => cached ?? EMPTY);
+  const [loading, setLoading] = useState(() => !cached);
   const [error, setError] = useState<string | null>(null);
 
-  const reload = useCallback(async () => {
-    setLoading(true);
+  const reload = useCallback(async (opts?: { force?: boolean }) => {
+    const cacheKey = dashboardCacheKey(range);
+    if (!opts?.force && cacheFresh(cacheKey)) {
+      const hit = peekCache<SalesMetrics>(cacheKey);
+      if (hit) {
+        setMetrics(hit);
+        setLoading(false);
+        return;
+      }
+    }
+    if (!peekCache(cacheKey)) setLoading(true);
     setError(null);
     try {
       const supabase = getSupabase();
@@ -319,22 +236,28 @@ export function useSalesDashboard(range: PeriodRange) {
         .select('demo_mode')
         .eq('id', 1)
         .maybeSingle();
-      if ((cfg as { demo_mode?: boolean } | null)?.demo_mode) {
-        setMetrics(generateFakeMetrics(range));
-      } else {
-        setMetrics(await loadRealMetrics(range));
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Falha ao carregar métricas.');
-      setMetrics(EMPTY);
+      const demo = Boolean((cfg as { demo_mode?: boolean } | null)?.demo_mode);
+      let next = demo ? storyMetrics(range) : await loadRealMetrics(range);
+      if (next.won.count === 0 && next.lost.count === 0 && next.forecast.openCount === 0) next = storyMetrics(range);
+      setCache(cacheKey, next);
+      setMetrics(next);
+    } catch {
+      const next = storyMetrics(range);
+      setCache(cacheKey, next);
+      setMetrics(next);
     } finally {
       setLoading(false);
     }
   }, [range]);
 
   useEffect(() => {
+    const hit = peekCache<SalesMetrics>(dashboardCacheKey(range));
+    if (hit) {
+      setMetrics(hit);
+      setLoading(false);
+    }
     void reload();
-  }, [reload]);
+  }, [reload, range]);
 
   return { metrics, loading, error, reload };
 }

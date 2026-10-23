@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { HelpCircle } from 'lucide-react';
 import {
   Area,
@@ -22,12 +23,12 @@ import { brl, formatDuration } from '@/lib/dashboard';
 
 const TOOLTIP_STYLE = {
   background: 'var(--color-bg-card)',
-  border: '1px solid rgba(59,130,246,0.25)',
+  border: '1px solid #E5E7EB',
   borderRadius: 10,
   fontSize: 12,
 } as const;
 
-const PALETTE = ['#3B82F6', '#60A5FA', '#10B981', '#FBBF24', '#A78BFA', '#F87171', '#94A3B8'];
+const PALETTE = ['#22C55E', '#16A34A', '#4ADE80', '#86EFAC', '#111827', '#6B7280', '#FBBF24'];
 
 export function WidgetCard({
   title,
@@ -37,8 +38,8 @@ export function WidgetCard({
 }: {
   title: string;
   subtitle?: string;
-  headerRight?: React.ReactNode;
-  children: React.ReactNode;
+  headerRight?: ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="glass-card p-5">
@@ -63,6 +64,15 @@ function EmptyState({ text }: { text: string }) {
 }
 
 // --- Vendas ganhas / perdidas: KPI + série temporal ------------------------
+function seriesDeltaPct(series: DaySeriesPoint[]) {
+  if (series.length < 4) return null;
+  const mid = Math.floor(series.length / 2);
+  const prev = series.slice(0, mid).reduce((s, p) => s + p.count, 0);
+  const next = series.slice(mid).reduce((s, p) => s + p.count, 0);
+  if (prev === 0) return null;
+  return ((next - prev) / prev) * 100;
+}
+
 export function SalesKpiWidget({
   title,
   count,
@@ -76,6 +86,7 @@ export function SalesKpiWidget({
   series: DaySeriesPoint[];
   color: string;
 }) {
+  const delta = seriesDeltaPct(series);
   return (
     <WidgetCard
       title={title}
@@ -88,9 +99,21 @@ export function SalesKpiWidget({
         </span>
       }
     >
-      <div className="text-stat" style={{ color }}>
+      <div className="text-stat text-[#111827]">
         {brl(value)}
       </div>
+      {delta != null ? (
+        <div
+          className={
+            delta >= 0
+              ? 'mt-2 inline-flex rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700'
+              : 'mt-2 inline-flex rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700'
+          }
+        >
+          {delta >= 0 ? '+' : ''}
+          {delta.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% vs. período anterior
+        </div>
+      ) : null}
       <div className="mt-3 h-24">
         {count === 0 ? (
           <EmptyState text="Sem registros no período." />
@@ -135,10 +158,10 @@ export function RankingWidget({
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, left: 90, bottom: 0 }}>
-              <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--color-text-secondary)' }} stroke="rgba(59,130,246,0.2)" tickFormatter={(v) => brl(Number(v))} />
-              <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 11, fill: 'var(--color-text-label)' }} stroke="rgba(59,130,246,0.2)" />
+              <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--color-text-secondary)' }} stroke="#E5E7EB" tickFormatter={(v) => brl(Number(v))} />
+              <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 11, fill: 'var(--color-text-label)' }} stroke="#E5E7EB" />
               <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [brl(Number(v)), 'Ganho']} />
-              <Bar dataKey="value" fill="#10B981" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="value" fill="#22C55E" radius={[0, 8, 8, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}
@@ -163,7 +186,7 @@ export function ForecastWidget({
       headerRight={
         <span className="group relative inline-flex cursor-help text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)]">
           <HelpCircle className="h-4 w-4" />
-          <span className="pointer-events-none absolute right-0 top-6 z-20 w-64 rounded-lg border border-[rgba(59,130,246,0.25)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs leading-5 text-[var(--color-text-primary)] opacity-0 shadow-[0_0_30px_rgba(59,130,246,0.15)] transition-opacity duration-200 group-hover:opacity-100">
+          <span className="pointer-events-none absolute right-0 top-6 z-20 w-64 rounded-xl border border-[#E5E7EB] bg-white px-3 py-2 text-xs leading-5 text-[var(--color-text-primary)] opacity-0 shadow-lg transition-opacity duration-200 group-hover:opacity-100">
             Receita projetada de todo o pipeline aberto, não depende do período selecionado
           </span>
         </span>
@@ -303,10 +326,10 @@ export function OriginBarsWidget({
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 36, left: 100, bottom: 0 }}>
-              <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--color-text-secondary)' }} stroke="rgba(59,130,246,0.2)" allowDecimals={false} />
-              <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11, fill: 'var(--color-text-label)' }} stroke="rgba(59,130,246,0.2)" />
+              <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--color-text-secondary)' }} stroke="#E5E7EB" allowDecimals={false} />
+              <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11, fill: 'var(--color-text-label)' }} stroke="#E5E7EB" />
               <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v, _n, item) => [`${v} (${(item?.payload as { pct: number }).pct}%)`, 'Leads']} />
-              <Bar dataKey="count" fill="#3B82F6" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="count" fill="#22C55E" radius={[0, 8, 8, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}

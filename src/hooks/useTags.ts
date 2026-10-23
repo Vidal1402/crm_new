@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAppUser } from '@/app/providers/AppUserProvider';
+import { mergeById, storyTags } from '@/lib/mock/story';
+import { cacheFresh, peekCache, setCache } from '@/lib/queryCache';
 import type { Tag } from '@/types/db';
 
 // Tag CRUD for the single-org install. RLS still gates non-authenticated
@@ -18,21 +20,33 @@ interface UseTagsResult {
 
 export function useTags(): UseTagsResult {
   const { userId } = useAppUser();
-  const [tags, setTags] = useState<Tag[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = userId ? `tags:${userId}` : '';
+  const cached = cacheKey ? peekCache<Tag[]>(cacheKey) : undefined;
+  const [tags, setTags] = useState<Tag[]>(() => cached ?? []);
+  const [loading, setLoading] = useState(() => !cached);
   const [error, setError] = useState<string | null>(null);
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (opts?: { force?: boolean }) => {
     if (!userId) return;
-    setLoading(true);
+    const key = `tags:${userId}`;
+    if (!opts?.force && cacheFresh(key)) {
+      const hit = peekCache<Tag[]>(key);
+      if (hit) {
+        setTags(hit);
+        setLoading(false);
+        return;
+      }
+    }
+    if (!peekCache(key)) setLoading(true);
     setError(null);
     const supabase = getSupabase();
     const { data, error: err } = await supabase
       .from('tags')
       .select('*')
       .order('name', { ascending: true });
-    if (err) setError(err.message);
-    else setTags((data ?? []) as Tag[]);
+    const next = mergeById(storyTags(), err ? [] : ((data ?? []) as Tag[]));
+    setCache(key, next);
+    setTags(next);
     setLoading(false);
   }, [userId]);
 
@@ -52,7 +66,7 @@ export function useTags(): UseTagsResult {
       setError(err.message);
       throw new Error(translateDbError(err.message));
     }
-    await reload();
+    await reload({ force: true });
     return data as Tag;
   };
 
@@ -66,7 +80,7 @@ export function useTags(): UseTagsResult {
       setError(err.message);
       throw new Error(translateDbError(err.message));
     }
-    await reload();
+    await reload({ force: true });
   };
 
   const remove: UseTagsResult['remove'] = async (id) => {
@@ -76,7 +90,7 @@ export function useTags(): UseTagsResult {
       setError(err.message);
       throw new Error(translateDbError(err.message));
     }
-    await reload();
+    await reload({ force: true });
   };
 
   return { tags, loading, error, reload, create, update, remove };

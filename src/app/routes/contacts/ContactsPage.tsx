@@ -10,7 +10,8 @@ import {
   Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useContacts, type ContactSort } from '@/hooks/useContacts';
+import { useContactBook, useContacts, type ContactSort } from '@/hooks/useContacts';
+import { monthTitle, type AccountView } from '@/lib/accountBook';
 import { useTags } from '@/hooks/useTags';
 import { TagManagerDialog } from '@/components/contacts/TagManagerDialog';
 import { ContactFormDialog } from '@/components/contacts/ContactFormDialog';
@@ -31,6 +32,7 @@ export default function ContactsPage() {
   const [search, setSearch] = useState('');
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [sourceFilter, setSourceFilter] = useState<string | null>(null);
+  const [book, setBook] = useState<AccountView>('all');
   const [sort, setSort] = useState<ContactSort>('recent');
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -40,14 +42,20 @@ export default function ContactsPage() {
   const [showImport, setShowImport] = useState(false);
 
   const { tags } = useTags();
+  const bookCounts = useContactBook();
   const { contacts, total, loading, error, remove, assignTags, reload } = useContacts({
     search,
     tagId: tagFilter,
     source: sourceFilter,
+    book,
     sort,
     page,
     pageSize: PAGE_SIZE,
   });
+  const refresh = () => {
+    void reload();
+    void bookCounts.reload();
+  };
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -87,6 +95,7 @@ export default function ContactsPage() {
       await remove(Array.from(selected));
       toast.success(`${selected.size} contato(s) removido(s).`);
       setSelected(new Set());
+      void bookCounts.reload();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Não foi possível remover os contatos.');
     } finally {
@@ -119,7 +128,7 @@ export default function ContactsPage() {
             <div className="text-label">Seção</div>
             <h1 className="text-2xl font-bold text-display">Contatos</h1>
             <p className="text-sm text-[var(--color-text-secondary)]">
-              {total.toLocaleString('pt-BR')} contato{total !== 1 ? 's' : ''} no total
+              {total.toLocaleString('pt-BR')} contato{total !== 1 ? 's' : ''} nesta visão
             </p>
           </div>
         </div>
@@ -145,19 +154,64 @@ export default function ContactsPage() {
         </div>
       </div>
 
+      <p className="text-sm text-[#6B7280]">
+        Suposição: cliente alterado nos últimos 90 dias fica ativo; de 90 dias a um ano, inativo recente; antes disso,
+        inativo antigo. Quem não é cliente entra como prospect. A carteira do mês conta só clientes alterados neste mês.
+        Cidade, estado, vínculo e bloqueio ficam de fora — isso não foi visto em funcionamento e este cadastro não tem
+        esses campos.
+      </p>
+
+      {bookCounts.error ? <LoadErrorBanner message={bookCounts.error} onRetry={() => void bookCounts.reload()} /> : null}
+
+      <div className="grid gap-3 sm:grid-cols-[220px_1fr]">
+        <section className="rounded-2xl border border-[#E5E7EB] bg-white p-4">
+          <div className="text-xs text-[#6B7280]">Carteira de {monthTitle(new Date())}</div>
+          <div className="mt-2 text-2xl font-semibold tabular-nums text-[#111827]">
+            {bookCounts.loading ? '…' : bookCounts.counts.monthClients}
+          </div>
+          <p className="mt-1 text-xs text-[#6B7280]">clientes com alteração neste mês</p>
+          <Link to="/indicadores" className="mt-3 inline-block text-sm font-medium text-[#166534] hover:underline">
+            Ver indicadores
+          </Link>
+        </section>
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-[#E5E7EB] bg-[#E5E7EB] sm:grid-cols-4">
+          {(
+            [
+              ['active', 'Ativos', bookCounts.counts.active],
+              ['recent', 'Inativos recentes', bookCounts.counts.recent],
+              ['old', 'Inativos antigos', bookCounts.counts.old],
+              ['prospect', 'Prospects', bookCounts.counts.prospect],
+            ] as const
+          ).map(([id, label, value]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => {
+                setPage(1);
+                setBook(id);
+              }}
+              className={`bg-white px-4 py-4 text-left ${book === id ? 'ring-2 ring-inset ring-[#111827]' : ''}`}
+            >
+              <div className="text-[12px] text-[#6B7280]">{label}</div>
+              <div className="mt-2 text-xl font-semibold tabular-nums text-[#111827]">{bookCounts.loading ? '…' : value}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="glass-card p-4 space-y-3">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-text-secondary)]" />
             <input
               type="search"
-              placeholder="Buscar por nome, telefone ou e-mail"
+              placeholder="Buscar por nome, telefone, e-mail ou documento"
               value={search}
               onChange={(e) => {
                 setPage(1);
                 setSearch(e.target.value);
               }}
-              className="w-full h-10 pl-10 pr-4 rounded-lg bg-white/[0.03] border border-[rgba(59,130,246,0.12)] text-sm placeholder:text-[var(--color-text-secondary)] focus:outline-none focus:border-[var(--accent-primary)]"
+              className="w-full h-10 pl-10 pr-4 rounded-lg bg-white border border-[#E5E7EB] text-sm placeholder:text-[var(--color-text-secondary)] focus:outline-none focus:border-[var(--accent-primary)]"
             />
           </div>
           <select
@@ -166,7 +220,7 @@ export default function ContactsPage() {
               setPage(1);
               setTagFilter(e.target.value || null);
             }}
-            className="h-10 rounded-lg border border-[rgba(59,130,246,0.12)] bg-white/[0.03] px-3 text-sm text-[var(--color-text-primary)]"
+            className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[var(--color-text-primary)]"
           >
             <option value="">Todas as tags</option>
             {tags.map((t) => (
@@ -181,7 +235,7 @@ export default function ContactsPage() {
               setPage(1);
               setSourceFilter(e.target.value || null);
             }}
-            className="h-10 rounded-lg border border-[rgba(59,130,246,0.12)] bg-white/[0.03] px-3 text-sm text-[var(--color-text-primary)]"
+            className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[var(--color-text-primary)]"
           >
             <option value="">Todos os canais</option>
             {SOURCE_OPTIONS.map((s) => (
@@ -191,12 +245,27 @@ export default function ContactsPage() {
             ))}
           </select>
           <select
+            value={book}
+            onChange={(e) => {
+              setPage(1);
+              setBook(e.target.value as AccountView);
+            }}
+            className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[var(--color-text-primary)]"
+            aria-label="Exibir"
+          >
+            <option value="all">Todos</option>
+            <option value="active">Ativos</option>
+            <option value="recent">Inativos recentes</option>
+            <option value="old">Inativos antigos</option>
+            <option value="prospect">Prospects</option>
+          </select>
+          <select
             value={sort}
             onChange={(e) => {
               setPage(1);
               setSort(e.target.value as ContactSort);
             }}
-            className="h-10 rounded-lg border border-[rgba(59,130,246,0.12)] bg-white/[0.03] px-3 text-sm text-[var(--color-text-primary)]"
+            className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[var(--color-text-primary)]"
           >
             <option value="recent">Mais recentes</option>
             <option value="oldest">Mais antigos</option>
@@ -206,7 +275,7 @@ export default function ContactsPage() {
         </div>
 
         {selected.size > 0 && (
-          <div className="flex items-center gap-2 rounded-lg border border-[rgba(59,130,246,0.25)] bg-[rgba(59,130,246,0.06)] px-4 py-2">
+          <div className="flex items-center gap-2 rounded-lg border border-[#E5E7EB] bg-[#F3F4F6] px-4 py-2">
             <span className="text-sm font-medium">
               {selected.size} selecionado{selected.size > 1 ? 's' : ''}
             </span>
@@ -231,10 +300,10 @@ export default function ContactsPage() {
 
         {error && <LoadErrorBanner message={error} onRetry={() => void reload()} />}
 
-        <div className="rounded-lg border border-[rgba(59,130,246,0.08)] overflow-x-auto">
+        <div className="rounded-lg border border-[#F3F4F6] overflow-x-auto">
           <table className="w-full min-w-[920px] text-sm">
             <thead>
-              <tr className="bg-white/[0.02] text-left">
+              <tr className="bg-white text-left">
                 <th className="p-3 w-10">
                   <input
                     type="checkbox"
@@ -264,7 +333,7 @@ export default function ContactsPage() {
               ) : contacts.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="p-8 text-center text-[var(--color-text-secondary)] opacity-60">
-                    {search || tagFilter
+                    {search || tagFilter || sourceFilter || book !== 'all'
                       ? 'Nenhum contato encontrado com estes filtros.'
                       : 'Nenhum contato ainda — crie um manualmente ou importe CSV/XLSX.'}
                   </td>
@@ -273,7 +342,7 @@ export default function ContactsPage() {
                 contacts.map((c) => (
                   <tr
                     key={c.id}
-                    className="border-t border-[rgba(59,130,246,0.06)] hover:bg-white/[0.02]"
+                    className="border-t border-[#F3F4F6] hover:bg-white"
                   >
                     <td className="p-3">
                       <input
@@ -295,7 +364,7 @@ export default function ContactsPage() {
                       {c.kind === 'cliente' ? (
                         <span className="inline-flex rounded-full bg-[rgba(16,185,129,0.12)] px-2 py-0.5 text-xs font-semibold text-[#10B981]">Cliente</span>
                       ) : c.kind === 'lead' ? (
-                        <span className="inline-flex rounded-full bg-[rgba(59,130,246,0.12)] px-2 py-0.5 text-xs font-semibold text-[var(--accent-secondary)]">Lead</span>
+                        <span className="inline-flex rounded-full bg-[#E5E7EB] px-2 py-0.5 text-xs font-semibold text-[var(--accent-secondary)]">Lead</span>
                       ) : (
                         <span className="opacity-40">—</span>
                       )}
@@ -351,6 +420,23 @@ export default function ContactsPage() {
                       >
                         Editar
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          if (!confirm(`Remover ${c.name || 'este contato'}?`)) return;
+                          void remove([c.id])
+                            .then(() => {
+                              toast.success('Contato removido.');
+                              void bookCounts.reload();
+                            })
+                            .catch((err) => {
+                              toast.error(err instanceof Error ? err.message : 'Não foi possível remover o contato.');
+                            });
+                        }}
+                      >
+                        Excluir
+                      </Button>
                     </td>
                   </tr>
                 ))
@@ -392,12 +478,12 @@ export default function ContactsPage() {
         open={showForm}
         contact={editing}
         onClose={() => setShowForm(false)}
-        onSaved={reload}
+        onSaved={refresh}
       />
       <ImportContactsDialog
         open={showImport}
         onClose={() => setShowImport(false)}
-        onDone={reload}
+        onDone={refresh}
       />
 
     </div>

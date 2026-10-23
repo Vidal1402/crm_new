@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAppUser } from '@/app/providers/AppUserProvider';
+import { cacheFresh, peekCache, setCache } from '@/lib/queryCache';
+import { isStoryId, storyMessages } from '@/lib/mock/story';
 import type { Message } from '@/types/inbox';
 
 // Mensagem exibida na thread: pode ser uma linha real do banco ou um balão
@@ -29,18 +31,35 @@ interface UseMessagesResult {
 
 export function useMessages(conversationId: string | null): UseMessagesResult {
   const { userId } = useAppUser();
-  const [real, setReal] = useState<Message[]>([]);
+  const cacheKey = conversationId ? `messages:${conversationId}` : '';
+  const cached = cacheKey ? peekCache<Message[]>(cacheKey) : undefined;
+  const [real, setReal] = useState<Message[]>(() => cached ?? []);
   const [optimistic, setOptimistic] = useState<ThreadMessage[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => Boolean(conversationId) && !cached);
   const [error, setError] = useState<string | null>(null);
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (opts?: { force?: boolean }) => {
     if (!conversationId) {
       setReal([]);
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (isStoryId(conversationId)) {
+      setReal(storyMessages(conversationId));
+      setError(null);
+      setLoading(false);
+      return;
+    }
+    const key = `messages:${conversationId}`;
+    if (!opts?.force && cacheFresh(key, 20_000)) {
+      const hit = peekCache<Message[]>(key);
+      if (hit) {
+        setReal(hit);
+        setLoading(false);
+        return;
+      }
+    }
+    if (!peekCache(key)) setLoading(true);
     setError(null);
     const supabase = getSupabase();
     const { data, error: err } = await supabase.schema('whatsapp_hub')
@@ -49,13 +68,21 @@ export function useMessages(conversationId: string | null): UseMessagesResult {
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true });
     if (err) setError(err.message);
-    else setReal((data ?? []) as Message[]);
+    else {
+      const next = (data ?? []) as Message[];
+      setCache(key, next);
+      setReal(next);
+    }
     setLoading(false);
   }, [conversationId]);
 
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    if (conversationId) setCache(`messages:${conversationId}`, real);
+  }, [conversationId, real]);
 
   // Troca de conversa: descarta balões otimistas da conversa anterior.
   useEffect(() => {
@@ -64,7 +91,7 @@ export function useMessages(conversationId: string | null): UseMessagesResult {
 
   // Realtime: append new messages + update existing (meta_status transitions).
   useEffect(() => {
-    if (!userId || !conversationId) return;
+    if (!userId || !conversationId || isStoryId(conversationId)) return;
     const supabase = getSupabase();
     const suffix = Math.random().toString(36).slice(2, 10);
     const channel = supabase
@@ -145,6 +172,25 @@ export function useMessages(conversationId: string | null): UseMessagesResult {
   const doSend = useCallback(
     async (tempId: string, text: string, isPrivate: boolean): Promise<SendResult> => {
       if (!conversationId) return { ok: false };
+      if (isStoryId(conversationId)) {
+        const message: Message = {
+          id: tempId,
+          conversation_id: conversationId,
+          direction: 'outbound',
+          sender_type: 'operator',
+          sender_id: userId,
+          content_type: 'text',
+          content: text,
+          media_url: null,
+          zernio_message_id: null,
+          meta_status: 'sent',
+          is_private_note: isPrivate,
+          created_at: new Date().toISOString(),
+        };
+        setReal((prev) => [...prev, message]);
+        setOptimistic((prev) => prev.filter((item) => item._tempId !== tempId));
+        return { ok: true };
+      }
       setOptimistic((prev) =>
         prev.map((o) => (o._tempId === tempId ? { ...o, _state: 'pending' } : o)),
       );

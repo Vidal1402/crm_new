@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAppUser } from '@/app/providers/AppUserProvider';
 import type { Contact, ContactWithTags, Tag } from '@/types/db';
+import { cacheFresh, invalidateCache, peekCache, setCache } from '@/lib/queryCache';
+import { monthRange, viewRange, type AccountTally, type AccountView } from '@/lib/accountBook';
+import { filterStoryContacts, isStoryId, storyBook } from '@/lib/mock/story';
 
 export type ContactSort = 'recent' | 'oldest' | 'name' | 'first_seen';
 
@@ -9,6 +12,7 @@ interface UseContactsInput {
   search?: string;
   tagId?: string | null;
   source?: string | null;
+  book?: AccountView;
   sort?: ContactSort;
   page?: number;
   pageSize?: number;
@@ -33,23 +37,64 @@ interface UseContactsResult {
 
 const PAGE_SIZE_DEFAULT = 25;
 
+function sampleContactPage(input: {
+  search: string;
+  source: string | null;
+  book: AccountView;
+  sort: ContactSort;
+  page: number;
+  pageSize: number;
+  tagId?: string | null;
+  live?: ContactWithTags[];
+  liveTotal?: number;
+}): { contacts: ContactWithTags[]; total: number } {
+  const live = input.live ?? [];
+  const liveTotal = input.liveTotal ?? live.length;
+  if (input.tagId && !input.tagId.startsWith('story-tag-')) return { contacts: live, total: liveTotal };
+  const sample = filterStoryContacts({
+    search: input.search,
+    source: input.source,
+    book: input.book,
+    sort: input.sort,
+    page: 1,
+    pageSize: 100,
+  }).contacts.filter((contact) => !live.some((row) => row.id === contact.id));
+  return {
+    contacts: input.page === 1 ? [...sample, ...live] : live,
+    total: liveTotal + sample.length,
+  };
+}
+
 export function useContacts({
   search = '',
   tagId = null,
   source = null,
+  book = 'all',
   sort = 'recent',
   page = 1,
   pageSize = PAGE_SIZE_DEFAULT,
 }: UseContactsInput = {}): UseContactsResult {
   const { userId } = useAppUser();
-  const [contacts, setContacts] = useState<ContactWithTags[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = `contacts:${userId ?? ''}:${search}:${tagId ?? ''}:${source ?? ''}:${book}:${sort}:${page}:${pageSize}`;
+  const cached = peekCache<{ contacts: ContactWithTags[]; total: number }>(cacheKey);
+  const [contacts, setContacts] = useState<ContactWithTags[]>(() => cached?.contacts ?? []);
+  const [total, setTotal] = useState(() => cached?.total ?? 0);
+  const [loading, setLoading] = useState(() => !cached);
   const [error, setError] = useState<string | null>(null);
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (opts?: { force?: boolean }) => {
     if (!userId) return;
-    setLoading(true);
+    const key = `contacts:${userId}:${search}:${tagId ?? ''}:${source ?? ''}:${book}:${sort}:${page}:${pageSize}`;
+    if (!opts?.force && cacheFresh(key)) {
+      const hit = peekCache<{ contacts: ContactWithTags[]; total: number }>(key);
+      if (hit) {
+        setContacts(hit.contacts);
+        setTotal(hit.total);
+        setLoading(false);
+        return;
+      }
+    }
+    if (!peekCache(key)) setLoading(true);
     setError(null);
     const supabase = getSupabase();
 
@@ -72,6 +117,7 @@ export function useContacts({
       }
       contactIdsForTag = (links ?? []).map((l) => l.contact_id as string);
       if (contactIdsForTag.length === 0) {
+        setCache(key, { contacts: [], total: 0 });
         setContacts([]);
         setTotal(0);
         setLoading(false);
@@ -98,13 +144,31 @@ export function useContacts({
       query = query.eq('source', source);
     }
 
+    const range = viewRange(book, new Date());
+    if (range.type === 'prospect') query = query.or('kind.is.null,kind.eq.lead');
+    if (range.type === 'cliente') {
+      query = query.eq('kind', 'cliente');
+      if (range.from) query = query.gte('updated_at', range.from);
+      if (range.to) query = query.lt('updated_at', range.to);
+    }
+
     if (search.trim()) {
       const pattern = `%${search.trim()}%`;
-      query = query.or(`name.ilike.${pattern},phone.ilike.${pattern},email.ilike.${pattern}`);
+      query = query.or(
+        `name.ilike.${pattern},phone.ilike.${pattern},email.ilike.${pattern},custom_fields->>cnpj.ilike.${pattern}`,
+      );
     }
 
     const { data, error: err, count } = await query;
     if (err) {
+      const fallback = sampleContactPage({ search, source, book, sort, page, pageSize, tagId });
+      if (fallback.contacts.length > 0) {
+        setCache(key, fallback);
+        setContacts(fallback.contacts);
+        setTotal(fallback.total);
+        setLoading(false);
+        return;
+      }
       setError(err.message);
       setLoading(false);
       return;
@@ -112,8 +176,10 @@ export function useContacts({
 
     const ids = (data ?? []).map((c) => c.id as string);
     if (ids.length === 0) {
-      setContacts([]);
-      setTotal(count ?? 0);
+      const fallback = sampleContactPage({ search, source, book, sort, page, pageSize, tagId, liveTotal: count ?? 0 });
+      setCache(key, fallback);
+      setContacts(fallback.contacts);
+      setTotal(fallback.total);
       setLoading(false);
       return;
     }
@@ -154,11 +220,23 @@ export function useContacts({
       tags: byContact.get(c.id as string) ?? [],
       traffic_type: trafficByContact.get(c.id as string) ?? null,
     }));
+    const pageResult = sampleContactPage({
+      search,
+      source,
+      book,
+      sort,
+      page,
+      pageSize,
+      tagId,
+      live: merged,
+      liveTotal: count ?? 0,
+    });
 
-    setContacts(merged);
-    setTotal(count ?? 0);
+    setCache(key, pageResult);
+    setContacts(pageResult.contacts);
+    setTotal(pageResult.total);
     setLoading(false);
-  }, [userId, search, tagId, source, sort, page, pageSize]);
+  }, [userId, search, tagId, source, book, sort, page, pageSize]);
 
   useEffect(() => {
     void reload();
@@ -186,7 +264,8 @@ export function useContacts({
     if (tag_ids.length > 0) {
       await assignTagsTo([created.id], tag_ids);
     }
-    await reload();
+    invalidateCache('contacts:');
+    await reload({ force: true });
     return created;
   };
 
@@ -208,27 +287,104 @@ export function useContacts({
           .insert(tag_ids.map((tag_id) => ({ contact_id: id, tag_id })));
       }
     }
-    await reload();
+    invalidateCache('contacts:');
+    await reload({ force: true });
   };
 
   const remove: UseContactsResult['remove'] = async (ids) => {
-    if (ids.length === 0) return;
+    if (ids.length === 0 || ids.every((id) => isStoryId(id))) return;
     const supabase = getSupabase();
     const { error: err } = await supabase.schema('whatsapp_hub').from('contacts').delete().in('id', ids);
     if (err) {
       setError(err.message);
       throw new Error(translateContactError(err.message));
     }
-    await reload();
+    invalidateCache('contacts:');
+    await reload({ force: true });
   };
 
   const assignTags: UseContactsResult['assignTags'] = async (contactIds, tagIds) => {
     if (!userId || contactIds.length === 0 || tagIds.length === 0) return;
     await assignTagsTo(contactIds, tagIds);
-    await reload();
+    invalidateCache('contacts:');
+    await reload({ force: true });
   };
 
   return { contacts, total, loading, error, reload, create, update, remove, assignTags };
+}
+
+export function useContactBook() {
+  const { userId } = useAppUser();
+  const cached = peekCache<AccountTally>('contacts:book');
+  const [counts, setCounts] = useState<AccountTally>(
+    () => cached ?? { active: 0, recent: 0, old: 0, prospect: 0, monthClients: 0 },
+  );
+  const [loading, setLoading] = useState(() => !cached);
+  const [error, setError] = useState<string | null>(null);
+
+  const reload = useCallback(async () => {
+    if (!userId) return;
+    if (!peekCache('contacts:book')) setLoading(true);
+    const supabase = getSupabase();
+    const now = new Date();
+    const views: AccountView[] = ['active', 'recent', 'old', 'prospect'];
+    const counted = await Promise.all(
+      views.map(async (view) => {
+        let query = supabase.from('contacts').select('id', { count: 'exact', head: true });
+        const range = viewRange(view, now);
+        if (range.type === 'prospect') query = query.or('kind.is.null,kind.eq.lead');
+        if (range.type === 'cliente') {
+          query = query.eq('kind', 'cliente');
+          if (range.from) query = query.gte('updated_at', range.from);
+          if (range.to) query = query.lt('updated_at', range.to);
+        }
+        return query;
+      }),
+    );
+    const failed = counted.find((result) => result.error);
+    if (failed?.error) {
+      setError(failed.error.message);
+      setLoading(false);
+      return;
+    }
+    const month = monthRange(now);
+    const monthCount = await supabase
+      .from('contacts')
+      .select('id', { count: 'exact', head: true })
+      .eq('kind', 'cliente')
+      .gte('updated_at', month.from)
+      .lt('updated_at', month.to);
+    if (monthCount.error) {
+      setError(monthCount.error.message);
+      setLoading(false);
+      return;
+    }
+    const live: AccountTally = {
+      active: counted[0].count ?? 0,
+      recent: counted[1].count ?? 0,
+      old: counted[2].count ?? 0,
+      prospect: counted[3].count ?? 0,
+      monthClients: monthCount.count ?? 0,
+    };
+    const sample = storyBook();
+    const tally: AccountTally = {
+      active: live.active + sample.active,
+      recent: live.recent + sample.recent,
+      old: live.old + sample.old,
+      prospect: live.prospect + sample.prospect,
+      monthClients: live.monthClients + sample.monthClients,
+    };
+    setCache('contacts:book', tally);
+    setCounts(tally);
+    setError(null);
+    setLoading(false);
+  }, [userId]);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  return { counts, loading, error, reload };
 }
 
 async function assignTagsTo(contactIds: string[], tagIds: string[]) {

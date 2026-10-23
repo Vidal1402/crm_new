@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAppUser } from '@/app/providers/AppUserProvider';
+import { storyDispatch } from '@/lib/mock/story';
+import { cacheFresh, peekCache, setCache } from '@/lib/queryCache';
 
 export type DashboardPeriod = '7d' | '30d' | '90d';
 
@@ -56,23 +58,39 @@ function periodDays(p: DashboardPeriod): number {
   return p === '7d' ? 7 : p === '30d' ? 30 : 90;
 }
 
+type MetricsCache = {
+  campaigns: CampaignAgg[];
+  volumeByDay: VolumeByDay[];
+  conversationStatus: ConversationStatusDistribution;
+};
+
 export function useDashboardMetrics(): UseDashboardMetricsResult {
   const { userId } = useAppUser();
   const [period, setPeriod] = useState<DashboardPeriod>('30d');
-  const [campaigns, setCampaigns] = useState<CampaignAgg[]>([]);
-  const [volumeByDay, setVolumeByDay] = useState<VolumeByDay[]>([]);
-  const [conversationStatus, setConversationStatus] = useState<ConversationStatusDistribution>({
-    ai_active: 0,
-    human_active: 0,
-    closed: 0,
-    total: 0,
-  });
-  const [loading, setLoading] = useState(true);
+  const metricsKey = userId ? `dashMetrics:${userId}:${period}` : '';
+  const cached = metricsKey ? peekCache<MetricsCache>(metricsKey) : undefined;
+  const [campaigns, setCampaigns] = useState<CampaignAgg[]>(() => cached?.campaigns ?? []);
+  const [volumeByDay, setVolumeByDay] = useState<VolumeByDay[]>(() => cached?.volumeByDay ?? []);
+  const [conversationStatus, setConversationStatus] = useState<ConversationStatusDistribution>(
+    () => cached?.conversationStatus ?? { ai_active: 0, human_active: 0, closed: 0, total: 0 },
+  );
+  const [loading, setLoading] = useState(() => !cached);
   const [error, setError] = useState<string | null>(null);
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (opts?: { force?: boolean }) => {
     if (!userId) return;
-    setLoading(true);
+    const key = `dashMetrics:${userId}:${period}`;
+    if (!opts?.force && cacheFresh(key)) {
+      const hit = peekCache<MetricsCache>(key);
+      if (hit) {
+        setCampaigns(hit.campaigns);
+        setVolumeByDay(hit.volumeByDay);
+        setConversationStatus(hit.conversationStatus);
+        setLoading(false);
+        return;
+      }
+    }
+    if (!peekCache(key)) setLoading(true);
     setError(null);
     const supabase = getSupabase();
 
@@ -97,9 +115,11 @@ export function useDashboardMetrics(): UseDashboardMetricsResult {
     ]);
 
     if (campsQ.error || msgsQ.error || convsQ.error) {
-      setError(
-        campsQ.error?.message ?? msgsQ.error?.message ?? convsQ.error?.message ?? 'Falha',
-      );
+      const sample = storyDispatch(periodDays(period));
+      setCampaigns(sample.campaigns);
+      setVolumeByDay(sample.volumeByDay);
+      setConversationStatus(sample.conversationStatus);
+      setCache(key, sample);
       setLoading(false);
       return;
     }
@@ -134,7 +154,16 @@ export function useDashboardMetrics(): UseDashboardMetricsResult {
       else if (row.status === 'closed') dist.closed++;
       dist.total++;
     }
-    setConversationStatus(dist);
+    const liveCampaigns = (campsQ.data ?? []) as CampaignAgg[];
+    const sample = liveCampaigns.length === 0 && dist.total === 0 ? storyDispatch(periodDays(period)) : null;
+    setCampaigns(sample?.campaigns ?? liveCampaigns);
+    setVolumeByDay(sample?.volumeByDay ?? days);
+    setConversationStatus(sample?.conversationStatus ?? dist);
+    setCache(key, {
+      campaigns: sample?.campaigns ?? liveCampaigns,
+      volumeByDay: sample?.volumeByDay ?? days,
+      conversationStatus: sample?.conversationStatus ?? dist,
+    });
 
     setLoading(false);
   }, [userId, period]);

@@ -9,7 +9,7 @@ import { appProductName } from '@/lib/app-flavor';
 
 export default function App() {
   useEffect(() => {
-    document.title = `${appProductName()} · Agentise`;
+    document.title = `traction. · ${appProductName()}`;
   }, []);
 
   return (

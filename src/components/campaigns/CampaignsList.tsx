@@ -19,7 +19,7 @@ const STATUS_LABEL: Record<CampaignStatus, string> = {
 const STATUS_COLORS: Record<CampaignStatus, string> = {
   draft: 'bg-[var(--color-bg-muted)] text-[var(--color-text-secondary)]',
   scheduled: 'bg-[rgba(245,158,11,0.12)] text-[#A16207]',
-  sending: 'bg-[rgba(59,130,246,0.18)] text-[var(--accent-primary)] animate-pulse',
+  sending: 'bg-green-100 text-green-700 animate-pulse',
   completed: 'bg-[rgba(16,185,129,0.12)] text-[var(--color-success)]',
   paused: 'bg-white/10 text-[var(--color-text-secondary)]',
   failed: 'bg-[rgba(239,68,68,0.12)] text-[var(--color-error)]',
@@ -187,7 +187,7 @@ function Metric({
           ? 'text-[var(--color-error)]'
           : 'text-[var(--color-text-primary)]';
   return (
-    <div className="rounded-lg bg-white/[0.02] border border-[rgba(59,130,246,0.08)] p-3 text-center">
+    <div className="rounded-lg bg-white border border-[#F3F4F6] p-3 text-center">
       <div className={`text-xl font-bold ${colorClass}`}>{value}</div>
       <div className="text-[10px] uppercase tracking-wide text-[var(--color-text-secondary)] mt-0.5">
         {label}

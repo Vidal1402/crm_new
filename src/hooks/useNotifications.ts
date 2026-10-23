@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAppUser } from '@/app/providers/AppUserProvider';
+import { mergeById, storyNotices } from '@/lib/mock/story';
 import { isNotifSoundEnabled } from '@/lib/soundPrefs';
 
 export type NotificationType = 'new_message' | 'handoff' | 'mention';
@@ -77,7 +78,7 @@ export function useNotifications(): UseNotificationsResult {
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(50);
-    setNotifications((data ?? []) as NotificationRow[]);
+    setNotifications(mergeById(storyNotices(), (data ?? []) as NotificationRow[]));
     setLoading(false);
   }, [userId]);
 

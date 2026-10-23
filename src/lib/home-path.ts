@@ -1,5 +1,5 @@
 export function homePath(isSuperAdmin: boolean): string {
-  return isSuperAdmin ? '/saas' : '/dashboard';
+  return isSuperAdmin ? '/saas' : '/funil';
 }
 
 export function isSuperAdminRole(role: string | null | undefined): boolean {

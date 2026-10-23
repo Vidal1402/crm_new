@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { NAV_ITEMS, PLATFORM_NAV_ITEMS, type NavItem } from './nav-config';
 import { useAppUser } from '@/app/providers/AppUserProvider';
+import { TractionLogo } from '@/components/brand/TractionLogo';
 
 interface MobileNavProps {
   open: boolean;
@@ -25,26 +26,21 @@ export function MobileNav({ open, onClose, platform = false }: MobileNavProps) {
       )}
       aria-hidden={!open}
     >
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <aside
         className={cn(
-          'absolute left-0 top-0 h-full w-72 max-w-[80vw] glass-surface border-r border-[rgba(59,130,246,0.15)] flex flex-col transition-transform duration-300',
+          'absolute left-0 top-0 h-full w-72 max-w-[80vw] bg-white border-r border-[#E5E7EB] flex flex-col transition-transform duration-300',
           open ? 'translate-x-0' : '-translate-x-full',
         )}
         role="dialog"
         aria-label="Navegação"
       >
-        <div className="h-16 shrink-0 flex items-center justify-between px-4 border-b border-[rgba(59,130,246,0.1)]">
-          <span className="font-semibold text-[var(--color-text-primary)]">
-            {platform ? 'Plataforma' : 'Agentise'}
-          </span>
+        <div className="h-16 shrink-0 flex items-center justify-between px-4 border-b border-[#E5E7EB]">
+          <TractionLogo compact />
           <button
             onClick={onClose}
             aria-label="Fechar menu"
-            className="h-11 w-11 flex items-center justify-center rounded-lg text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-primary)] transition-all duration-[400ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
+            className="h-11 w-11 flex items-center justify-center rounded-xl text-[#6B7280] hover:bg-[#F3F4F6]"
           >
             <X className="h-5 w-5" />
           </button>
@@ -57,19 +53,20 @@ export function MobileNav({ open, onClose, platform = false }: MobileNavProps) {
               <NavLink
                 key={item.to}
                 to={item.to}
-                end={item.to === '/saas'}
+                end={item.to === '/saas' || item.to === '/painel' || item.to === '/funil' || item.to === '/sala-de-guerra' || item.to === '/settings/profile'}
                 onClick={onClose}
                 className={({ isActive }) =>
                   cn(
-                    'flex items-center gap-3 rounded-lg px-3 min-h-11 text-sm font-medium transition-all duration-[400ms] ease-[cubic-bezier(0.4,0,0.2,1)]',
-                    isActive
-                      ? 'bg-[rgba(59,130,246,0.12)] text-[var(--color-text-primary)] shadow-[0_0_30px_rgba(59,130,246,0.15)]'
-                      : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-primary)]',
+                    'flex items-center gap-3 rounded-xl px-3 min-h-11 text-sm font-medium',
+                    isActive ? 'bg-[#111827] text-white' : 'text-[#4B5563] hover:bg-[#F3F4F6] hover:text-[#111827]',
                   )
                 }
               >
                 <Icon className="h-4.5 w-4.5 shrink-0" />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.comingSoon ? (
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-600">em breve</span>
+                ) : null}
               </NavLink>
             );
           })}

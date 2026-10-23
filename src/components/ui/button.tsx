@@ -7,16 +7,14 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // Gradiente 135° #1E3A8A→#3B82F6 (botão primário do DS Agentise) com
-        // glow azul no hover (30→48px). Antes era cor chapada, fora do DS.
         default:
-          'bg-[var(--accent-primary)] text-white shadow-sm hover:brightness-110',
+          'bg-[#111827] text-white shadow-sm hover:bg-black rounded-xl',
         secondary:
-          'bg-[var(--color-bg-muted)] text-[var(--color-text-primary)] border border-[rgba(59,130,246,0.2)] hover:bg-white/10 hover:border-[rgba(59,130,246,0.4)]',
+          'bg-[var(--color-bg-muted)] text-[var(--color-text-primary)] border border-[#E5E7EB] hover:bg-white hover:border-[#D1D5DB] rounded-xl',
         ghost:
-          'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-primary)]',
+          'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-primary)] rounded-xl',
         outline:
-          'border border-[rgba(59,130,246,0.25)] bg-transparent text-[var(--color-text-primary)] hover:bg-[var(--color-bg-muted)] hover:border-[rgba(59,130,246,0.5)]',
+          'border border-[#E5E7EB] bg-white text-[var(--color-text-primary)] hover:bg-[var(--color-bg-muted)] hover:border-[#D1D5DB] rounded-xl',
         destructive:
           'bg-[var(--color-error)] text-white hover:bg-[var(--color-error)]/90',
         link:

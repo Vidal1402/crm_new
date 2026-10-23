@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { getSupabase } from '@/lib/supabase';
 import { useAppUser } from '@/app/providers/AppUserProvider';
 import { useOperators } from '@/hooks/useOperators';
+import { STORY_PEOPLE, storyOwnerName } from '@/lib/mock/story';
 
 // Fila de distribuição automática de leads no handoff. A ordem (position) define
 // a sequência do round-robin; o toggle liga/desliga a atribuição automática.
@@ -19,7 +20,7 @@ export function LeadAssignmentSettings() {
   const [loading, setLoading] = useState(true);
   const dragIdx = useRef<number | null>(null);
 
-  const emailOf = (uid: string) => operators.find((o) => o.user_id === uid)?.email ?? uid;
+  const emailOf = (uid: string) => operators.find((o) => o.user_id === uid)?.name || operators.find((o) => o.user_id === uid)?.email || storyOwnerName(uid) || uid;
 
   useEffect(() => {
     if (!userId) return;
@@ -34,7 +35,8 @@ export function LeadAssignmentSettings() {
           .order('position', { ascending: true }),
       ]);
       setEnabled(Boolean((cfgRes.data as { auto_assign_enabled?: boolean } | null)?.auto_assign_enabled));
-      setQueue(((queueRes.data ?? []) as { user_id: string }[]).map((r) => r.user_id));
+      const liveQueue = ((queueRes.data ?? []) as { user_id: string }[]).map((r) => r.user_id);
+      setQueue(liveQueue.length > 0 ? liveQueue : STORY_PEOPLE.map((person) => person.id));
       setLoading(false);
     })();
   }, [userId]);
@@ -129,7 +131,7 @@ export function LeadAssignmentSettings() {
           </p>
         </header>
 
-        <label className="flex items-center gap-3 rounded-lg border border-[rgba(59,130,246,0.15)] bg-white/[0.02] px-4 py-3 cursor-pointer">
+        <label className="flex items-center gap-3 rounded-lg border border-[#E5E7EB] bg-white px-4 py-3 cursor-pointer">
           <input
             type="checkbox"
             checked={enabled}
@@ -160,7 +162,7 @@ export function LeadAssignmentSettings() {
                       onDragStart={() => { dragIdx.current = i; }}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={() => onDrop(i)}
-                      className="flex items-center gap-2 rounded-lg border border-[rgba(59,130,246,0.15)] bg-white/[0.02] px-3 py-2"
+                      className="flex items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2"
                     >
                       <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-[var(--color-text-secondary)]" />
                       <span className="w-5 text-xs font-semibold text-[var(--accent-primary)]">{i + 1}</span>
@@ -199,7 +201,7 @@ export function LeadAssignmentSettings() {
                       <button
                         type="button"
                         onClick={() => void addToQueue(op.user_id)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-[rgba(59,130,246,0.2)] px-2.5 py-1 text-xs font-medium text-[var(--accent-secondary)] transition hover:border-[var(--accent-primary)] hover:bg-[var(--color-bg-muted)]"
+                        className="inline-flex items-center gap-1 rounded-lg border border-[#E5E7EB] px-2.5 py-1 text-xs font-medium text-[var(--accent-secondary)] transition hover:border-[var(--accent-primary)] hover:bg-[var(--color-bg-muted)]"
                       >
                         <Plus className="h-3 w-3" /> Adicionar
                       </button>

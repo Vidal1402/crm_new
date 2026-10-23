@@ -117,7 +117,7 @@ export default function SaasTenantsPage() {
         <div className="grid md:grid-cols-2 gap-4">
           {tenants.map((tenant) => (
             <Link key={tenant.id} to={`/saas/${tenant.id}`} className="block">
-              <Card className="p-5 h-full hover:border-[rgba(59,130,246,0.4)] transition-colors">
+              <Card className="p-5 h-full hover:border-[rgba(34,197,94,0.2)] transition-colors">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-semibold">{tenant.name}</h2>
@@ -191,8 +191,8 @@ export default function SaasTenantsPage() {
                     className={cn(
                       'text-left rounded-xl border p-3 transition-colors',
                       selected
-                        ? 'border-[var(--accent-primary)] bg-[rgba(59,130,246,0.12)]'
-                        : 'border-[rgba(59,130,246,0.2)] hover:bg-white/[0.03]',
+                        ? 'border-[var(--accent-primary)] bg-[#E5E7EB]'
+                        : 'border-[#E5E7EB] hover:bg-white',
                     )}
                   >
                     <div className="font-semibold">{p.name}</div>

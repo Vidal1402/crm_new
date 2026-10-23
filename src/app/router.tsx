@@ -1,39 +1,40 @@
-import { lazy, Suspense, type ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AppLayout } from './layout/AppLayout';
 import { useSupabaseConfig } from '@/hooks/useSupabase';
 import { useAuth } from './providers/AuthProvider';
 import { isAuthCallbackLocation } from '@/lib/auth-callback';
-import { FeatureGate } from '@/components/plans/FeatureGate';
 import { useAppUser } from './providers/AppUserProvider';
 import { homePath } from '@/lib/home-path';
-
-const SetupPage = lazy(() => import('./routes/setup/SetupPage'));
-const LoginPage = lazy(() => import('./routes/auth/LoginPage'));
-const SignupPage = lazy(() => import('./routes/auth/SignupPage'));
-const InvitePage = lazy(() => import('./routes/invite/InvitePage'));
-const DashboardPage = lazy(() => import('./routes/dashboard/DashboardPage'));
-const InboxPage = lazy(() => import('./routes/inbox/InboxPage'));
-const CampaignsPage = lazy(() => import('./routes/campaigns/CampaignsPage'));
-const ContactsPage = lazy(() => import('./routes/contacts/ContactsPage'));
-const ContactDetailPage = lazy(() => import('./routes/contacts/ContactDetailPage'));
-const FunilPage = lazy(() => import('./routes/funil/FunilPage'));
-const SettingsPage = lazy(() => import('./routes/settings/SettingsPage'));
-const SaasTenantsPage = lazy(() => import('./routes/saas/SaasTenantsPage'));
-const SaasTenantDetailPage = lazy(() => import('./routes/saas/SaasTenantDetailPage'));
-const SaasAdminsPage = lazy(() => import('./routes/saas/SaasAdminsPage'));
-
-function PageFallback() {
-  return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="text-label opacity-60">Carregando...</div>
-    </div>
-  );
-}
+import SetupPage from './routes/setup/SetupPage';
+import LoginPage from './routes/auth/LoginPage';
+import SignupPage from './routes/auth/SignupPage';
+import InvitePage from './routes/invite/InvitePage';
+import InboxPage from './routes/inbox/InboxPage';
+import CampaignsPage from './routes/campaigns/CampaignsPage';
+import ContactsPage from './routes/contacts/ContactsPage';
+import ContactDetailPage from './routes/contacts/ContactDetailPage';
+import FunilPage from './routes/funil/FunilPage';
+import SettingsPage from './routes/settings/SettingsPage';
+import SaasTenantsPage from './routes/saas/SaasTenantsPage';
+import SaasTenantDetailPage from './routes/saas/SaasTenantDetailPage';
+import SaasAdminsPage from './routes/saas/SaasAdminsPage';
+import ProspeccaoPage from './routes/modules/ProspeccaoPage';
+import SalaGuerraPage from './routes/modules/SalaGuerraPage';
+import OperacaoPage from './routes/modules/OperacaoPage';
+import PerformancePage from './routes/modules/PerformancePage';
+import MetasPage from './routes/modules/MetasPage';
+import ConversasPage from './routes/modules/ConversasPage';
+import AgendaPage from './routes/modules/AgendaPage';
+import PlaybooksPage from './routes/modules/PlaybooksPage';
+import RoteiroPage from './routes/modules/RoteiroPage';
+import IndicadoresPage from './routes/modules/IndicadoresPage';
+import PainelPage from './routes/modules/PainelPage';
+import PropostasPage from './routes/modules/PropostasPage';
 
 function HomeRedirect() {
   const { isSuperAdmin, loading } = useAppUser();
-  if (loading) return <PageFallback />;
+  if (loading) return null;
   return <Navigate to={homePath(isSuperAdmin)} replace />;
 }
 
@@ -49,7 +50,7 @@ function RequireSetup({ children }: { children: ReactElement }) {
 function RequireSession({ children }: { children: ReactElement }) {
   const { session, loading } = useAuth();
   const location = useLocation();
-  if (loading) return <PageFallback />;
+  if (loading && !session) return null;
   if (!session) {
     return (
       <Navigate to="/auth/login" state={{ from: location.pathname }} replace />
@@ -73,9 +74,9 @@ function RedirectIfConfigured({ children }: { children: ReactElement }) {
 
 function RequireSuperAdmin({ children }: { children: ReactElement }) {
   const { isSuperAdmin, loading } = useAppUser();
-  if (loading) return <PageFallback />;
+  if (loading && !isSuperAdmin) return null;
   if (!isSuperAdmin) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/funil" replace />;
   }
   return children;
 }
@@ -83,7 +84,7 @@ function RequireSuperAdmin({ children }: { children: ReactElement }) {
 function RedirectIfAuthenticated({ children }: { children: ReactElement }) {
   const { session, loading } = useAuth();
   const { isSuperAdmin, loading: userLoading } = useAppUser();
-  if (loading || userLoading) return <PageFallback />;
+  if (loading || userLoading) return children;
   if (session) {
     return <Navigate to={homePath(isSuperAdmin)} replace />;
   }
@@ -92,96 +93,102 @@ function RedirectIfAuthenticated({ children }: { children: ReactElement }) {
 
 export function AppRouter() {
   return (
-    <Suspense fallback={<PageFallback />}>
-      <Routes>
+    <Routes>
+      <Route
+        path="/setup"
+        element={
+          <RedirectIfConfigured>
+            <SetupPage />
+          </RedirectIfConfigured>
+        }
+      />
+
+      <Route
+        path="/auth/login"
+        element={
+          <RequireSetup>
+            <RedirectIfAuthenticated>
+              <LoginPage />
+            </RedirectIfAuthenticated>
+          </RequireSetup>
+        }
+      />
+      <Route
+        path="/auth/signup"
+        element={
+          <RequireSetup>
+            <RedirectIfAuthenticated>
+              <SignupPage />
+            </RedirectIfAuthenticated>
+          </RequireSetup>
+        }
+      />
+      <Route path="/invite" element={<InvitePage />} />
+
+      <Route
+        element={
+          <RequireSetup>
+            <RequireSession>
+              <AppLayout />
+            </RequireSession>
+          </RequireSetup>
+        }
+      >
+        <Route index element={<HomeRedirect />} />
         <Route
-          path="/setup"
+          path="/saas"
           element={
-            <RedirectIfConfigured>
-              <SetupPage />
-            </RedirectIfConfigured>
+            <RequireSuperAdmin>
+              <SaasTenantsPage />
+            </RequireSuperAdmin>
           }
         />
-
         <Route
-          path="/auth/login"
+          path="/saas/admins"
           element={
-            <RequireSetup>
-              <RedirectIfAuthenticated>
-                <LoginPage />
-              </RedirectIfAuthenticated>
-            </RequireSetup>
+            <RequireSuperAdmin>
+              <SaasAdminsPage />
+            </RequireSuperAdmin>
           }
         />
         <Route
-          path="/auth/signup"
+          path="/saas/:id"
           element={
-            <RequireSetup>
-              <RedirectIfAuthenticated>
-                <SignupPage />
-              </RedirectIfAuthenticated>
-            </RequireSetup>
+            <RequireSuperAdmin>
+              <SaasTenantDetailPage />
+            </RequireSuperAdmin>
           }
         />
-        <Route path="/invite" element={<InvitePage />} />
+        <Route path="/prospeccao" element={<ProspeccaoPage />} />
+        <Route path="/painel" element={<PainelPage />} />
+        <Route path="/sala-de-guerra" element={<SalaGuerraPage />} />
+        <Route path="/operacao" element={<OperacaoPage />} />
+        <Route path="/performance" element={<PerformancePage />} />
+        <Route path="/metas" element={<MetasPage />} />
+        <Route path="/conversas" element={<ConversasPage />} />
+        <Route path="/agenda" element={<AgendaPage />} />
+        <Route path="/playbooks" element={<PlaybooksPage />} />
+        <Route path="/roteiro" element={<RoteiroPage />} />
+        <Route path="/indicadores" element={<IndicadoresPage />} />
+        <Route path="/propostas" element={<PropostasPage />} />
+        <Route path="/dashboard" element={<Navigate to="/painel" replace />} />
+        <Route path="/inbox" element={<InboxPage />} />
+        <Route path="/campaigns" element={<CampaignsPage />} />
+        <Route path="/templates" element={<Navigate to="/campaigns?tab=templates" replace />} />
+        <Route path="/contacts" element={<ContactsPage />} />
+        <Route path="/contacts/:id" element={<ContactDetailPage />} />
+        <Route path="/funil" element={<FunilPage />} />
+        <Route path="/automacao" element={<Navigate to="/operacao" replace />} />
+        <Route path="/inteligencia" element={<Navigate to="/prospeccao" replace />} />
+        <Route path="/roi" element={<Navigate to="/metas" replace />} />
+        <Route path="/projetos" element={<Navigate to="/funil" replace />} />
+        <Route path="/educacao" element={<Navigate to="/funil" replace />} />
+        <Route path="/settings" element={<Navigate to="/settings/profile" replace />} />
+        <Route path="/settings/profile" element={<SettingsPage />} />
+        <Route path="/settings/credentials" element={<Navigate to="/settings/profile" replace />} />
+      </Route>
 
-        <Route
-          element={
-            <RequireSetup>
-              <RequireSession>
-                <AppLayout />
-              </RequireSession>
-            </RequireSetup>
-          }
-        >
-          <Route index element={<HomeRedirect />} />
-          <Route
-            path="/saas"
-            element={
-              <RequireSuperAdmin>
-                <SaasTenantsPage />
-              </RequireSuperAdmin>
-            }
-          />
-          <Route
-            path="/saas/admins"
-            element={
-              <RequireSuperAdmin>
-                <SaasAdminsPage />
-              </RequireSuperAdmin>
-            }
-          />
-          <Route
-            path="/saas/:id"
-            element={
-              <RequireSuperAdmin>
-                <SaasTenantDetailPage />
-              </RequireSuperAdmin>
-            }
-          />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/inbox" element={<InboxPage />} />
-          <Route
-            path="/campaigns"
-            element={
-              <FeatureGate feature="campaigns">
-                <CampaignsPage />
-              </FeatureGate>
-            }
-          />
-          <Route path="/templates" element={<Navigate to="/campaigns?tab=templates" replace />} />
-          <Route path="/contacts" element={<ContactsPage />} />
-          <Route path="/contacts/:id" element={<ContactDetailPage />} />
-          <Route path="/funil" element={<FunilPage />} />
-          <Route path="/projetos" element={<Navigate to="/funil" replace />} />
-          <Route path="/educacao" element={<Navigate to="/funil" replace />} />
-          <Route path="/settings" element={<Navigate to="/settings/profile" replace />} />
-          <Route path="/settings/profile" element={<SettingsPage />} />
-          <Route path="/settings/credentials" element={<Navigate to="/settings/profile" replace />} />
-        </Route>
-
-        <Route path="*" element={<HomeRedirect />} />
-      </Routes>
-    </Suspense>
+      <Route path="*" element={<HomeRedirect />} />
+    </Routes>
   );
 }
