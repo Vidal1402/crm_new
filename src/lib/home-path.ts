@@ -1,5 +1,7 @@
+import { appFlavor, homePathFor } from './app-flavor';
+
 export function homePath(isSuperAdmin: boolean): string {
-  return isSuperAdmin ? '/saas' : '/funil';
+  return homePathFor(appFlavor(), isSuperAdmin);
 }
 
 export function isSuperAdminRole(role: string | null | undefined): boolean {

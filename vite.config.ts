@@ -20,11 +20,17 @@ export default defineConfig(({ mode }) => {
     fileEnv.SUPABASE_ANON_KEY ??
     fileEnv.VITE_SUPABASE_ANON_KEY ??
     '';
-  const vercelEnv = process.env.VERCEL_ENV ?? fileEnv.VERCEL_ENV ?? '';
+  const explicitChannel = process.env.VITE_APP_CHANNEL ?? fileEnv.VITE_APP_CHANNEL ?? '';
+  const projectName = process.env.VERCEL_PROJECT_NAME ?? fileEnv.VERCEL_PROJECT_NAME ?? '';
+  const normalizedChannel = explicitChannel.trim().toLowerCase();
   const appChannel =
-    process.env.VITE_APP_CHANNEL ??
-    fileEnv.VITE_APP_CHANNEL ??
-    (vercelEnv === 'production' ? 'producao' : 'espelho');
+    normalizedChannel === 'producao' || normalizedChannel === 'production'
+      ? 'producao'
+      : normalizedChannel === 'espelho'
+        ? 'espelho'
+        : projectName === 'crm-unix'
+          ? 'producao'
+          : 'espelho';
   const googleMapsKey =
     process.env.VITE_GOOGLE_MAPS_API_KEY ?? fileEnv.VITE_GOOGLE_MAPS_API_KEY ?? '';
 
