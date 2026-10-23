@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Loader2, MailCheck, ShieldAlert } from 'lucide-react';
@@ -31,6 +31,13 @@ export default function InvitePage() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // O link do e-mail é de uso único. Na segunda visita não há sessão nova:
+  // a conta já existe e a entrada é o login com a senha definida na primeira vez.
+  useEffect(() => {
+    if (!configured || loading || session) return;
+    navigate('/auth/login?convite=usado', { replace: true });
+  }, [configured, loading, session, navigate]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -92,8 +99,8 @@ export default function InvitePage() {
   if (!session) {
     return (
       <AuthShell
-        title="Convite inválido"
-        subtitle="O link parece estar incorreto ou expirado."
+        title="Convite já usado"
+        subtitle="A conta já existe. Entre com a senha que você criou."
         footer={
           <>
             Já tem conta?{' '}
@@ -109,8 +116,7 @@ export default function InvitePage() {
         <div className="flex flex-col items-center gap-4 py-4 text-center">
           <ShieldAlert className="h-12 w-12 text-[var(--color-error)]" />
           <p className="text-sm text-[var(--color-text-secondary)] max-w-sm">
-            Abra o link diretamente do e-mail de convite. Se já passou da validade,
-            peça um novo convite ao owner desta instância.
+            O link do e-mail só abre a conta na primeira vez. Na próxima entrada, use o botão Entrar com o e-mail e a senha definidos aqui.
           </p>
         </div>
       </AuthShell>

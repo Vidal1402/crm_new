@@ -12,6 +12,7 @@ import { homePath, isSuperAdminRole } from '@/lib/home-path';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const conviteUsado = new URLSearchParams(window.location.search).get('convite') === 'usado';
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -94,6 +95,11 @@ export default function LoginPage() {
         )
       }
     >
+      {conviteUsado ? (
+        <p className="rounded-lg border border-[#E5E7EB] bg-[#F3F4F6] px-4 py-3 text-sm leading-5 text-[var(--color-text-primary)]">
+          O link do convite só funciona uma vez. Entre com o e-mail e a senha que você definiu quando aceitou o convite.
+        </p>
+      ) : null}
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-2">
           <Label htmlFor="email">E-mail</Label>
