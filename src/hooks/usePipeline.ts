@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
+import { withTenant } from '@/lib/tenantWrite';
 import type { ActionType, Pipeline, Stage, Deal, Tag } from '@/types/crm';
-import { isStoryId, storyDealsOn, storyStages, storyWorkspace } from '@/lib/mock/story';
 import { cacheFresh, peekCache, setCache } from '@/lib/queryCache';
 
 const DEAL_SELECT =
@@ -97,12 +97,11 @@ export function usePipeline(): UsePipelineResult {
       .order('position');
     const list = (data ?? []) as Pipeline[];
     if (err || list.length === 0) {
-      const board = storyWorkspace();
-      setCache('pipelines', [board.pipeline]);
-      setPipelines([board.pipeline]);
-      setSelectedId(board.pipeline.id);
-      setCache('pipeline:selected', board.pipeline.id);
-      return [board.pipeline];
+      if (err) setError(err.message);
+      setCache('pipelines', list);
+      setPipelines(list);
+      setSelectedId(null);
+      return list;
     }
     setCache('pipelines', list);
     setPipelines(list);
@@ -125,14 +124,6 @@ export function usePipeline(): UsePipelineResult {
       setLoading(false);
       return;
     }
-    if (isStoryId(pipelineId)) {
-      const board = storyWorkspace();
-      setStages(board.stages);
-      setDeals(board.deals);
-      setError(null);
-      setLoading(false);
-      return;
-    }
     const boardKey = `pipeline:board:${pipelineId}`;
     if (!opts?.force && cacheFresh(boardKey)) {
       const hit = peekCache<BoardCache>(boardKey);
@@ -150,21 +141,13 @@ export function usePipeline(): UsePipelineResult {
       supabase.from('deals').select(DEAL_SELECT).eq('pipeline_id', pipelineId).order('created_at', { ascending: false }),
     ]);
     if (dErr) setError(dErr.message);
-    let stagesLive = (st ?? []) as Stage[];
-    let dealRows = ((dl ?? []) as Record<string, unknown>[]).map(normalizeDeal);
-    if (dErr && dealRows.length === 0) {
-      stagesLive = storyStages(pipelineId);
-      dealRows = storyDealsOn(pipelineId, stagesLive);
-    } else if (!dErr) {
-      if (stagesLive.length === 0) stagesLive = storyStages(pipelineId);
-      const sample = storyDealsOn(pipelineId, stagesLive);
-      dealRows = [...sample.filter((deal) => !dealRows.some((row) => row.id === deal.id)), ...dealRows];
-    }
+    const stagesLive = (st ?? []) as Stage[];
+    const dealRows = dErr ? [] : ((dl ?? []) as Record<string, unknown>[]).map(normalizeDeal);
     setStages(stagesLive);
 
     // Próxima ação pendente por deal (para o badge do card): a mais próxima de
     // cada negócio. Uma query só, reduzida ao 1º por deal_id (ordem por due_at).
-    const dealIds = dealRows.map((d) => d.id).filter((id) => !isStoryId(id));
+    const dealIds = dealRows.map((d) => d.id);
     if (dealIds.length) {
       const { data: acts } = await supabase
         .from('crm_activities')
@@ -222,7 +205,7 @@ export function usePipeline(): UsePipelineResult {
 
   // Realtime dos deals do funil ativo.
   useEffect(() => {
-    if (!selectedId || isStoryId(selectedId)) return;
+    if (!selectedId) return;
     const supabase = getSupabase();
     const channel = supabase
       .channel(`pipeline-${selectedId}-${Math.random().toString(36).slice(2, 8)}`)
@@ -249,11 +232,6 @@ export function usePipeline(): UsePipelineResult {
       const prevStageId = deals.find((d) => d.id === dealId)?.stage_id ?? null;
       setDeals((cur) => cur.map((d) => (d.id === dealId ? { ...d, stage_id: stageId } : d)));
       const stage = stages.find((s) => s.id === stageId);
-      if (isStoryId(dealId)) {
-        const status = stage?.is_won ? 'won' : stage?.is_lost ? 'lost' : 'open';
-        setDeals((cur) => cur.map((d) => (d.id === dealId ? { ...d, stage_id: stageId, status } : d)));
-        return;
-      }
       const patch: Partial<Deal> = { stage_id: stageId };
       if (stage?.is_won) patch.status = 'won';
       else if (stage?.is_lost) patch.status = 'lost';
@@ -282,39 +260,17 @@ export function usePipeline(): UsePipelineResult {
   const createDeal = useCallback<UsePipelineResult['createDeal']>(
     async (input) => {
       if (!selectedId) return;
-      if (isStoryId(selectedId)) {
-        setDeals((cur) => {
-          const sample = cur[0];
-          if (!sample) return cur;
-          return [{
-            ...sample,
-            id: `story-deal-novo-${Date.now()}`,
-            title: input.title,
-            contact_id: input.contact_id,
-            value: input.value ?? 0,
-            stage_id: input.stage_id,
-            status: 'open',
-            won_at: null,
-            lost_at: null,
-            products: [],
-            next_action: null,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          }, ...cur];
-        });
-        return;
-      }
       const supabase = getSupabase();
       const { data, error: err } = await supabase
         .from('deals')
-        .insert({
+        .insert(await withTenant({
           title: input.title,
           contact_id: input.contact_id,
           value: input.value ?? 0,
           pipeline_id: selectedId,
           stage_id: input.stage_id,
           status: 'open',
-        })
+        }))
         .select(DEAL_SELECT)
         .single();
       if (err) {
@@ -333,7 +289,7 @@ export function usePipeline(): UsePipelineResult {
     const nextPos = pipelines.reduce((m, p) => Math.max(m, p.position), -1) + 1;
     const { data, error: err } = await supabase
       .from('pipelines')
-      .insert({ name: name.trim(), kind: 'comercial', position: nextPos, is_default: false })
+      .insert(await withTenant({ name: name.trim(), kind: 'comercial', position: nextPos, is_default: false }))
       .select('*')
       .single();
     if (err) {
@@ -342,12 +298,13 @@ export function usePipeline(): UsePipelineResult {
     }
     const pipe = data as Pipeline;
     // Semeia estágios padrão para o funil não nascer vazio.
-    await supabase.from('stages').insert([
-      { pipeline_id: pipe.id, name: 'Novo lead', position: 0, is_won: false, is_lost: false, probability: 10 },
-      { pipeline_id: pipe.id, name: 'Em andamento', position: 1, is_won: false, is_lost: false, probability: 50 },
-      { pipeline_id: pipe.id, name: 'Ganho', position: 2, is_won: true, is_lost: false, probability: 100 },
-      { pipeline_id: pipe.id, name: 'Perdido', position: 3, is_won: false, is_lost: true, probability: 0 },
+    const stagesSeed = await Promise.all([
+      withTenant({ pipeline_id: pipe.id, name: 'Novo lead', position: 0, is_won: false, is_lost: false, probability: 10 }),
+      withTenant({ pipeline_id: pipe.id, name: 'Em andamento', position: 1, is_won: false, is_lost: false, probability: 50 }),
+      withTenant({ pipeline_id: pipe.id, name: 'Ganho', position: 2, is_won: true, is_lost: false, probability: 100 }),
+      withTenant({ pipeline_id: pipe.id, name: 'Perdido', position: 3, is_won: false, is_lost: true, probability: 0 }),
     ]);
+    await supabase.from('stages').insert(stagesSeed);
     await loadPipelines();
     setSelectedId(pipe.id);
     return pipe;

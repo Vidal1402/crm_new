@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAppUser } from '@/app/providers/AppUserProvider';
-import { storyDispatch } from '@/lib/mock/story';
 import { cacheFresh, peekCache, setCache } from '@/lib/queryCache';
 
 export type DashboardPeriod = '7d' | '30d' | '90d';
@@ -115,11 +114,10 @@ export function useDashboardMetrics(): UseDashboardMetricsResult {
     ]);
 
     if (campsQ.error || msgsQ.error || convsQ.error) {
-      const sample = storyDispatch(periodDays(period));
-      setCampaigns(sample.campaigns);
-      setVolumeByDay(sample.volumeByDay);
-      setConversationStatus(sample.conversationStatus);
-      setCache(key, sample);
+      setError((campsQ.error ?? msgsQ.error ?? convsQ.error)?.message ?? 'Falha ao ler o painel.');
+      setCampaigns([]);
+      setVolumeByDay([]);
+      setConversationStatus({ ai_active: 0, human_active: 0, closed: 0, total: 0 });
       setLoading(false);
       return;
     }
@@ -155,14 +153,13 @@ export function useDashboardMetrics(): UseDashboardMetricsResult {
       dist.total++;
     }
     const liveCampaigns = (campsQ.data ?? []) as CampaignAgg[];
-    const sample = liveCampaigns.length === 0 && dist.total === 0 ? storyDispatch(periodDays(period)) : null;
-    setCampaigns(sample?.campaigns ?? liveCampaigns);
-    setVolumeByDay(sample?.volumeByDay ?? days);
-    setConversationStatus(sample?.conversationStatus ?? dist);
+    setCampaigns(liveCampaigns);
+    setVolumeByDay(days);
+    setConversationStatus(dist);
     setCache(key, {
-      campaigns: sample?.campaigns ?? liveCampaigns,
-      volumeByDay: sample?.volumeByDay ?? days,
-      conversationStatus: sample?.conversationStatus ?? dist,
+      campaigns: liveCampaigns,
+      volumeByDay: days,
+      conversationStatus: dist,
     });
 
     setLoading(false);

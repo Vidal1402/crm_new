@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAppUser } from '@/app/providers/AppUserProvider';
-import { isStoryId, mergeById, storyCampaigns } from '@/lib/mock/story';
+import { isStoryId } from '@/lib/mock/story';
 import { cacheFresh, peekCache, setCache } from '@/lib/queryCache';
 import type { AudienceFilter, Campaign, VariableSource } from '@/types/campaigns';
 import type { Contact } from '@/types/db';
@@ -101,7 +101,8 @@ export function useCampaigns(): UseCampaignsResult {
       .from('campaigns')
       .select('*')
       .order('created_at', { ascending: false });
-    const next = mergeById(storyCampaigns(), err ? [] : ((data ?? []) as Campaign[]));
+    const next = err ? [] : ((data ?? []) as Campaign[]);
+    if (err) setError(err.message);
     setCache(key, next);
     setCampaigns(next);
     setLoading(false);

@@ -5,7 +5,6 @@ import { Card } from '@/components/ui/card';
 import { getSupabase } from '@/lib/supabase';
 import { useAppUser } from '@/app/providers/AppUserProvider';
 import { useOperators } from '@/hooks/useOperators';
-import { STORY_PEOPLE, storyOwnerName } from '@/lib/mock/story';
 
 // Fila de distribuição automática de leads no handoff. A ordem (position) define
 // a sequência do round-robin; o toggle liga/desliga a atribuição automática.
@@ -20,7 +19,7 @@ export function LeadAssignmentSettings() {
   const [loading, setLoading] = useState(true);
   const dragIdx = useRef<number | null>(null);
 
-  const emailOf = (uid: string) => operators.find((o) => o.user_id === uid)?.name || operators.find((o) => o.user_id === uid)?.email || storyOwnerName(uid) || uid;
+  const emailOf = (uid: string) => operators.find((o) => o.user_id === uid)?.name || operators.find((o) => o.user_id === uid)?.email || uid;
 
   useEffect(() => {
     if (!userId) return;
@@ -36,7 +35,7 @@ export function LeadAssignmentSettings() {
       ]);
       setEnabled(Boolean((cfgRes.data as { auto_assign_enabled?: boolean } | null)?.auto_assign_enabled));
       const liveQueue = ((queueRes.data ?? []) as { user_id: string }[]).map((r) => r.user_id);
-      setQueue(liveQueue.length > 0 ? liveQueue : STORY_PEOPLE.map((person) => person.id));
+      setQueue(liveQueue);
       setLoading(false);
     })();
   }, [userId]);

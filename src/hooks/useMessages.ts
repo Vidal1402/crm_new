@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAppUser } from '@/app/providers/AppUserProvider';
 import { cacheFresh, peekCache, setCache } from '@/lib/queryCache';
-import { isStoryId, storyMessages } from '@/lib/mock/story';
 import type { Message } from '@/types/inbox';
 
 // Mensagem exibida na thread: pode ser uma linha real do banco ou um balão
@@ -41,12 +40,6 @@ export function useMessages(conversationId: string | null): UseMessagesResult {
   const reload = useCallback(async (opts?: { force?: boolean }) => {
     if (!conversationId) {
       setReal([]);
-      setLoading(false);
-      return;
-    }
-    if (isStoryId(conversationId)) {
-      setReal(storyMessages(conversationId));
-      setError(null);
       setLoading(false);
       return;
     }
@@ -91,7 +84,7 @@ export function useMessages(conversationId: string | null): UseMessagesResult {
 
   // Realtime: append new messages + update existing (meta_status transitions).
   useEffect(() => {
-    if (!userId || !conversationId || isStoryId(conversationId)) return;
+    if (!userId || !conversationId) return;
     const supabase = getSupabase();
     const suffix = Math.random().toString(36).slice(2, 10);
     const channel = supabase
@@ -172,25 +165,6 @@ export function useMessages(conversationId: string | null): UseMessagesResult {
   const doSend = useCallback(
     async (tempId: string, text: string, isPrivate: boolean): Promise<SendResult> => {
       if (!conversationId) return { ok: false };
-      if (isStoryId(conversationId)) {
-        const message: Message = {
-          id: tempId,
-          conversation_id: conversationId,
-          direction: 'outbound',
-          sender_type: 'operator',
-          sender_id: userId,
-          content_type: 'text',
-          content: text,
-          media_url: null,
-          zernio_message_id: null,
-          meta_status: 'sent',
-          is_private_note: isPrivate,
-          created_at: new Date().toISOString(),
-        };
-        setReal((prev) => [...prev, message]);
-        setOptimistic((prev) => prev.filter((item) => item._tempId !== tempId));
-        return { ok: true };
-      }
       setOptimistic((prev) =>
         prev.map((o) => (o._tempId === tempId ? { ...o, _state: 'pending' } : o)),
       );

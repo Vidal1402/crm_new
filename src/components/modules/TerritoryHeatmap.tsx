@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { Map as MapLibreMap, NavigationControl, type Map as MapType } from 'maplibre-gl';
+import { Map as MapLibreMap, NavigationControl, type GeoJSONSource, type Map as MapType } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { MOCK_HEAT_ZONES } from '@/lib/mock/modules';
+
+export interface HeatZone {
+  city: string;
+  label: string;
+  lng: number;
+  lat: number;
+  v: number;
+  leads: number;
+}
 
 const STYLE = 'https://tiles.openfreemap.org/styles/liberty';
 const FALLBACK_STYLE = {
@@ -28,9 +36,9 @@ function mulberry32(seed: number) {
   };
 }
 
-function heatPoints() {
+function heatPoints(zones: HeatZone[]) {
   const features: GeoJSON.Feature[] = [];
-  MOCK_HEAT_ZONES.forEach((z, zi) => {
+  zones.forEach((z, zi) => {
     const rng = mulberry32(zi * 9173 + 11);
     const n = 50 + Math.round(z.v * 280);
     for (let i = 0; i < n; i++) {
@@ -46,10 +54,10 @@ function heatPoints() {
   return { type: 'FeatureCollection' as const, features };
 }
 
-function labels() {
+function labels(zones: HeatZone[]) {
   return {
     type: 'FeatureCollection' as const,
-    features: MOCK_HEAT_ZONES.map((z) => ({
+    features: zones.map((z) => ({
       type: 'Feature' as const,
       properties: { label: `${z.label} · ${z.leads}`, city: z.city },
       geometry: { type: 'Point' as const, coordinates: [z.lng, z.lat] },
@@ -57,10 +65,11 @@ function labels() {
   };
 }
 
-function nearestCity(lng: number, lat: number) {
-  let best = MOCK_HEAT_ZONES[0];
+function nearestCity(zones: HeatZone[], lng: number, lat: number) {
+  if (zones.length === 0) return null;
+  let best = zones[0];
   let dist = Infinity;
-  for (const z of MOCK_HEAT_ZONES) {
+  for (const z of zones) {
     const d = (z.lng - lng) ** 2 + (z.lat - lat) ** 2;
     if (d < dist) {
       dist = d;
@@ -70,10 +79,10 @@ function nearestCity(lng: number, lat: number) {
   return best;
 }
 
-function addHeat(map: MapType) {
+function addHeat(map: MapType, zones: HeatZone[]) {
   if (map.getSource('heat')) return;
-  map.addSource('heat', { type: 'geojson', data: heatPoints() });
-  map.addSource('labels', { type: 'geojson', data: labels() });
+  map.addSource('heat', { type: 'geojson', data: heatPoints(zones) });
+  map.addSource('labels', { type: 'geojson', data: labels(zones) });
   map.addLayer({
     id: 'lead-heat',
     type: 'heatmap',
@@ -117,7 +126,7 @@ function addHeat(map: MapType) {
   });
 }
 
-function createMap(el: HTMLDivElement, opts: { zoom: number; pitch: number; bearing: number }) {
+function createMap(el: HTMLDivElement, opts: { zoom: number; pitch: number; bearing: number }, zones: HeatZone[]) {
   const map = new MapLibreMap({
     container: el,
     style: STYLE,
@@ -129,7 +138,7 @@ function createMap(el: HTMLDivElement, opts: { zoom: number; pitch: number; bear
   });
   map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
   let fallback = false;
-  const onLoad = () => addHeat(map);
+  const onLoad = () => addHeat(map, zones);
   map.on('load', onLoad);
   map.on('error', () => {
     if (fallback || map.getSource('heat')) return;
@@ -143,9 +152,11 @@ function createMap(el: HTMLDivElement, opts: { zoom: number; pitch: number; bear
 export function TerritoryHeatmap({
   selected,
   onSelect,
+  zones = [],
 }: {
   selected: string | null;
   onSelect: (city: string | null) => void;
+  zones?: HeatZone[];
 }) {
   const overviewEl = useRef<HTMLDivElement>(null);
   const streetEl = useRef<HTMLDivElement>(null);
@@ -155,6 +166,8 @@ export function TerritoryHeatmap({
   const selectedRef = useRef(selected);
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<{ label: string; lat: number; lng: number }[]>([]);
+  const zonesRef = useRef(zones);
+  zonesRef.current = zones;
   onSelectRef.current = onSelect;
   selectedRef.current = selected;
 
@@ -163,13 +176,14 @@ export function TerritoryHeatmap({
     const b = streetEl.current;
     if (!a || !b) return;
 
-    const overview = createMap(a, { zoom: 10.4, pitch: 58, bearing: -28 });
-    const street = createMap(b, { zoom: 16.8, pitch: 72, bearing: 24 });
+    const overview = createMap(a, { zoom: 10.4, pitch: 58, bearing: -28 }, zonesRef.current);
+    const street = createMap(b, { zoom: 16.8, pitch: 72, bearing: 24 }, zonesRef.current);
     overviewRef.current = overview;
     streetRef.current = street;
 
     const pick = (lng: number, lat: number) => {
-      const z = nearestCity(lng, lat);
+      const z = nearestCity(zonesRef.current, lng, lat);
+      if (!z) return;
       onSelectRef.current(selectedRef.current === z.city ? null : z.city);
     };
     overview.on('click', (e) => pick(e.lngLat.lng, e.lngLat.lat));
@@ -192,17 +206,26 @@ export function TerritoryHeatmap({
   }, []);
 
   useEffect(() => {
+    const data = heatPoints(zones);
+    const labelData = labels(zones);
+    for (const map of [overviewRef.current, streetRef.current]) {
+      (map?.getSource('heat') as GeoJSONSource | undefined)?.setData(data);
+      (map?.getSource('labels') as GeoJSONSource | undefined)?.setData(labelData);
+    }
+  }, [zones]);
+
+  useEffect(() => {
     const overview = overviewRef.current;
     const street = streetRef.current;
     if (!overview || !street) return;
-    const z = MOCK_HEAT_ZONES.find((x) => x.city === selected);
+    const z = zones.find((item) => item.city === selected);
     if (z) {
       overview.easeTo({ center: [z.lng, z.lat], zoom: 13, pitch: 62, duration: 700 });
       street.easeTo({ center: [z.lng, z.lat], zoom: 17.2, pitch: 75, bearing: 32, duration: 700 });
     } else {
       overview.easeTo({ center: [-46.64, -23.56], zoom: 10.4, pitch: 58, bearing: -28, duration: 700 });
     }
-  }, [selected]);
+  }, [selected, zones]);
 
   useEffect(() => {
     if (q.trim().length < 3) {
@@ -232,7 +255,8 @@ export function TerritoryHeatmap({
     streetRef.current?.easeTo({ center: [lng, lat], zoom: 17.2, pitch: 75, duration: 800 });
     setQ(label);
     setHits([]);
-    onSelectRef.current(nearestCity(lng, lat).city);
+    const zone = nearestCity(zonesRef.current, lng, lat);
+    if (zone) onSelectRef.current(zone.city);
   };
 
   return (
@@ -283,5 +307,5 @@ export function TerritoryHeatmap({
 }
 
 export function heatZoneLabel(city: string) {
-  return MOCK_HEAT_ZONES.find((z) => z.city === city)?.label ?? city;
+  return city;
 }

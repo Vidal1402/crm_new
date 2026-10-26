@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { isStoryId, storyOpenDeals } from '@/lib/mock/story';
+import { isStoryId } from '@/lib/mock/story';
 import { getSupabase } from '@/lib/supabase';
 
 // Negócios ABERTOS de um contato — versão enxuta usada pelo seletor "Negócio
@@ -31,7 +31,7 @@ export function useContactDeals(contactId: string | null | undefined): UseContac
       return;
     }
     if (isStoryId(contactId)) {
-      setDeals(storyOpenDeals(contactId));
+      setDeals([]);
       setError(null);
       setLoading(false);
       return;

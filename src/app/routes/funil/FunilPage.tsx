@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
 import { usePipeline } from '@/hooks/usePipeline';
+import { useOperators } from '@/hooks/useOperators';
+import { withTenant } from '@/lib/tenantWrite';
 import { useAppUser } from '@/app/providers/AppUserProvider';
 import { LoadErrorBanner } from '@/components/LoadErrorBanner';
 import { DealDrawer } from '@/components/funil/DealDrawer';
@@ -25,7 +27,6 @@ import { TEMPERATURE_STYLE, type ContactLite, type CustomField, type Deal, type 
 import { dueBadge } from '@/lib/nextAction';
 import {
   columnTotal,
-  createDesk,
   deskOwners,
   deskProducts,
   deskStages,
@@ -46,12 +47,13 @@ type Pop = null | 'filter' | 'sort' | 'range' | 'menu' | 'create' | 'edit' | 'pe
 
 export default function FunilPage() {
   const funil = usePipeline();
-  const { pipelines, select, pipeline, stages, deals, loading, error, reload, moveDeal, createDeal } = funil;
+  const { pipelines, select, pipeline, stages, deals, loading, error, reload, moveDeal, createDeal, createPipeline } = funil;
   const { tenantRole: role } = useAppUser();
+  const { operators } = useOperators();
   const today = useMemo(() => new Date(), []);
 
-  const [desk, setDesk] = useState<DeskState>(() => createDesk(new Date()));
-  const [boardId, setBoardId] = useState('desk-captacao');
+  const [desk, setDesk] = useState<DeskState>({ groups: [], boards: [], cards: [] });
+  const [boardId, setBoardId] = useState('');
   const [query, setQuery] = useState<DeskQuery>(EMPTY_DESK_QUERY);
   const [draft, setDraft] = useState<DeskQuery>(EMPTY_DESK_QUERY);
   const [railText, setRailText] = useState('');
@@ -72,15 +74,24 @@ export default function FunilPage() {
   const [filter, setFilter] = useState<DealFilter>(EMPTY_FILTER);
 
   const board = desk.boards.find((item) => item.id === boardId) ?? desk.boards[0];
-  const mock = desk.boards.some((item) => item.id === boardId);
+  const mock = Boolean(board) && desk.boards.some((item) => item.id === boardId);
   const shown = useMemo(
-    () => visibleCards(desk.cards, board.id, query, today),
-    [desk.cards, board.id, query, today],
+    () => (board ? visibleCards(desk.cards, board.id, query, today) : []),
+    [desk.cards, board, query, today],
   );
-  const filteredDeals = useMemo(() => applyDealFilter(deals, filter), [deals, filter]);
+  const filteredDeals = useMemo(() => {
+    const base = applyDealFilter(deals, filter);
+    const needleText = query.text.trim().toLowerCase();
+    if (!needleText) return base;
+    return base.filter((deal) => `${deal.title} ${deal.contact?.name ?? ''}`.toLowerCase().includes(needleText));
+  }, [deals, filter, query.text]);
   const openDeal = useMemo(() => deals.find((deal) => deal.id === openDealId) ?? null, [deals, openDealId]);
   const livePipelines = pipelines.filter((item) => item.id !== 'story-pipe');
   const needle = railText.trim().toLowerCase();
+
+  useEffect(() => {
+    if (pipeline?.id) setBoardId((current) => current || pipeline.id);
+  }, [pipeline?.id]);
 
   const [searchParams] = useSearchParams();
   useEffect(() => {
@@ -144,13 +155,12 @@ export default function FunilPage() {
           : item),
       }));
     } else if (pop === 'create') {
-      const id = `desk-${Date.now()}`;
-      setDesk((prev) => ({
-        ...prev,
-        groups: prev.groups.includes(group) ? prev.groups : [...prev.groups, group],
-        boards: [...prev.boards, { id, name, description: form.description.trim(), group }],
-      }));
-      setBoardId(id);
+      void createPipeline(name).then((created) => {
+        if (created) {
+          select(created.id);
+          setBoardId(created.id);
+        }
+      });
     }
     setPop(null);
   }
@@ -176,7 +186,7 @@ export default function FunilPage() {
           </label>
           <button
             type="button"
-            onClick={() => { setForm({ name: '', description: '', group: board.group }); setPop('create'); }}
+            onClick={() => { setForm({ name: '', description: '', group: 'Comercial' }); setPop('create'); }}
             className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-[#111827] px-3 py-2 text-sm font-semibold text-white"
           >
             <Plus className="h-4 w-4" /> Novo funil
@@ -257,7 +267,7 @@ export default function FunilPage() {
               {pop === 'filter' && (
                 <FilterPopover
                   draft={draft}
-                  owners={deskOwners()}
+                  owners={operators.map((operator) => operator.name || operator.email)}
                   products={deskProducts(desk.cards)}
                   onChange={setDraft}
                   onClear={() => { setDraft(EMPTY_DESK_QUERY); setQuery(EMPTY_DESK_QUERY); setPop(null); }}
@@ -352,9 +362,9 @@ export default function FunilPage() {
               </button>
             )}
           </div>
-          <p className="mt-2 text-xs text-[#6B7280]">
-            Suposição: a abertura usa 12 meses, a ordem padrão é a data mais nova, e o total da coluna é a soma dos cartões visíveis.
-          </p>
+            <p className="mt-2 text-xs text-[#6B7280]">
+              Os cartões e os totais vêm dos negócios gravados neste funil.
+            </p>
         </header>
 
         {error && !mock && <div className="px-5 pt-3"><LoadErrorBanner message={error} onRetry={() => void reload()} /></div>}
@@ -507,28 +517,25 @@ export default function FunilPage() {
             <button
               type="button"
               onClick={() => {
-                const lines = importText.split('\n').map((line) => line.trim()).filter(Boolean);
-                setDesk((prev) => ({
-                  ...prev,
-                  cards: [
-                    ...prev.cards,
-                    ...lines.map((line, index) => ({
-                      id: `desk-in-${Date.now()}-${index}`,
-                      boardId: board.id,
-                      stageKey: 'entrada',
-                      title: line,
-                      contact: line,
-                      owner: access[0] ?? 'Sem dono',
-                      product: line,
-                      value: 0,
-                      status: 'open' as const,
-                      occurredOn: new Date().toISOString().slice(0, 10),
-                      tag: 'lead',
-                    })),
-                  ],
-                }));
-                setImportText('');
-                setPop(null);
+                void (async () => {
+                  const lines = importText.split('\n').map((line) => line.trim()).filter(Boolean);
+                  const stage = stages[0];
+                  if (!stage || !pipeline) return;
+                  const supabase = getSupabase();
+                  for (const line of lines) {
+                    const [name, phone] = line.split(/[;,]/).map((part) => part.trim());
+                    if (!name || !phone) continue;
+                    const { data: contact } = await supabase
+                      .from('contacts')
+                      .insert(await withTenant({ name, phone, kind: 'lead' }))
+                      .select('id')
+                      .single();
+                    if (contact) await createDeal({ title: name, contact_id: contact.id, value: 0, stage_id: stage.id });
+                  }
+                  setImportText('');
+                  setPop(null);
+                  await reload();
+                })();
               }}
               className="rounded-lg bg-[#111827] px-4 py-2 text-sm font-semibold text-white"
             >

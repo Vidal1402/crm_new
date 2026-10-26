@@ -18,7 +18,6 @@ import {
   type ProposalRow,
   type ProposalScope,
 } from '@/lib/quoteLedger';
-import { storyOwnerName } from '@/lib/mock/story';
 import type { Deal } from '@/types/crm';
 
 const brl = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -74,7 +73,6 @@ export default function PropostasPage() {
   const ownerName = (ownerId: string | null) =>
     operators.find((operator) => operator.user_id === ownerId)?.name ||
     operators.find((operator) => operator.user_id === ownerId)?.email ||
-    storyOwnerName(ownerId) ||
     'Sem responsável';
 
   return (

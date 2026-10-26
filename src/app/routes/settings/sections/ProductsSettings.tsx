@@ -4,7 +4,7 @@ import { Loader2, Package, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { getSupabase } from '@/lib/supabase';
-import { isStoryId, mergeById, storyProducts } from '@/lib/mock/story';
+import { isStoryId } from '@/lib/mock/story';
 
 // Configurações → Produtos. Catálogo de produtos atribuíveis a leads/negócios
 // (via deal_products no drawer do lead). Quantidade (estoque) só para Físico —
@@ -48,7 +48,7 @@ export function ProductsSettings() {
       .select('*')
       .order('created_at', { ascending: false });
     if (error) toast.error('Falha ao carregar produtos', { description: error.message });
-    setProducts(mergeById(storyProducts(), error ? [] : ((data ?? []) as Product[])));
+    setProducts(error ? [] : ((data ?? []) as Product[]));
     setLoading(false);
   }, []);
 

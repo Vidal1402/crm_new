@@ -9,7 +9,6 @@ import { ModuleHeader, fieldClass } from '@/components/modules/ModuleChrome';
 import { useOperators } from '@/hooks/useOperators';
 import { useSalesDashboard } from '@/hooks/useSalesDashboard';
 import { brl } from '@/lib/dashboard';
-import { storyOwnerName } from '@/lib/mock/story';
 import {
   INDICATOR_IDEAS,
   INDICATORS,
@@ -239,7 +238,7 @@ export default function IndicadoresPage() {
                     valor: point.value,
                   }))}
                   people={people.map((row) => ({
-                    name: operators.find((operator) => operator.user_id === row.owner_id)?.name || storyOwnerName(row.owner_id) || 'Pessoa',
+                    name: operators.find((operator) => operator.user_id === row.owner_id)?.name || 'Pessoa',
                     valor: row.value,
                   }))}
                   openCount={item.id === 'atividades' ? responseCount : metrics.forecast.openCount}

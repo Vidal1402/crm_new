@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAppUser } from '@/app/providers/AppUserProvider';
 import type { Conversation, ConversationStatus, ConversationWithContact } from '@/types/inbox';
-import { mergeById, storyConversations } from '@/lib/mock/story';
 import { cacheFresh, peekCache, setCache } from '@/lib/queryCache';
 
 interface UseConversationsResult {
@@ -62,13 +61,11 @@ export function useConversations(): UseConversationsResult {
       .schema('whatsapp_hub')
       .from('conversations')
       .select('*, number:whatsapp_channel_id(name,phone)')
-      .in('channel', ['whatsapp', 'uazapi'])
       .order('last_message_at', { ascending: false, nullsFirst: false });
     const rows = (convs ?? []) as Conversation[];
     if (err) {
-      const demo = storyConversations();
-      setCache(key, demo);
-      setConversations(demo);
+      setError(err.message);
+      setConversations([]);
       setLoading(false);
       return;
     }
@@ -143,9 +140,8 @@ export function useConversations(): UseConversationsResult {
       lastInboundAt: lastInboundByConv.get(c.id) ?? null,
     }));
 
-    const withSample = mergeById(storyConversations(), merged);
-    setCache(key, withSample);
-    setConversations(withSample);
+    setCache(key, merged);
+    setConversations(merged);
     setLoading(false);
   }, [userId]);
 

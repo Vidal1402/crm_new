@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { getSupabase } from '@/lib/supabase';
-import { isStoryId, mergeById, storyMembers } from '@/lib/mock/story';
+import { isStoryId } from '@/lib/mock/story';
 import { useAppUser } from '@/app/providers/AppUserProvider';
 
 type Role = 'admin' | 'operator';
@@ -63,7 +63,7 @@ export function TeamSettings() {
     ]);
 
     if (membersRes.error) {
-      setMembers(storyMembers());
+      setMembers([]);
     } else {
       const emailByUser = new Map<string, string>(
         ((opsRes.data ?? []) as { user_id: string; email: string }[]).map((o) => [o.user_id, o.email]),
@@ -75,7 +75,7 @@ export function TeamSettings() {
         email: emailByUser.get(row.user_id as string) ?? null,
         accepted_at: (row.accepted_at as string | null) ?? null,
       }));
-      setMembers(mergeById(storyMembers(), live));
+      setMembers(live);
     }
 
     setLoading(false);

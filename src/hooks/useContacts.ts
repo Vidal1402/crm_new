@@ -4,7 +4,8 @@ import { useAppUser } from '@/app/providers/AppUserProvider';
 import type { Contact, ContactWithTags, Tag } from '@/types/db';
 import { cacheFresh, invalidateCache, peekCache, setCache } from '@/lib/queryCache';
 import { monthRange, viewRange, type AccountTally, type AccountView } from '@/lib/accountBook';
-import { filterStoryContacts, isStoryId, storyBook } from '@/lib/mock/story';
+import { isStoryId } from '@/lib/mock/story';
+import { withTenant } from '@/lib/tenantWrite';
 
 export type ContactSort = 'recent' | 'oldest' | 'name' | 'first_seen';
 
@@ -36,34 +37,6 @@ interface UseContactsResult {
 }
 
 const PAGE_SIZE_DEFAULT = 25;
-
-function sampleContactPage(input: {
-  search: string;
-  source: string | null;
-  book: AccountView;
-  sort: ContactSort;
-  page: number;
-  pageSize: number;
-  tagId?: string | null;
-  live?: ContactWithTags[];
-  liveTotal?: number;
-}): { contacts: ContactWithTags[]; total: number } {
-  const live = input.live ?? [];
-  const liveTotal = input.liveTotal ?? live.length;
-  if (input.tagId && !input.tagId.startsWith('story-tag-')) return { contacts: live, total: liveTotal };
-  const sample = filterStoryContacts({
-    search: input.search,
-    source: input.source,
-    book: input.book,
-    sort: input.sort,
-    page: 1,
-    pageSize: 100,
-  }).contacts.filter((contact) => !live.some((row) => row.id === contact.id));
-  return {
-    contacts: input.page === 1 ? [...sample, ...live] : live,
-    total: liveTotal + sample.length,
-  };
-}
 
 export function useContacts({
   search = '',
@@ -161,25 +134,18 @@ export function useContacts({
 
     const { data, error: err, count } = await query;
     if (err) {
-      const fallback = sampleContactPage({ search, source, book, sort, page, pageSize, tagId });
-      if (fallback.contacts.length > 0) {
-        setCache(key, fallback);
-        setContacts(fallback.contacts);
-        setTotal(fallback.total);
-        setLoading(false);
-        return;
-      }
       setError(err.message);
+      setContacts([]);
+      setTotal(0);
       setLoading(false);
       return;
     }
 
     const ids = (data ?? []).map((c) => c.id as string);
     if (ids.length === 0) {
-      const fallback = sampleContactPage({ search, source, book, sort, page, pageSize, tagId, liveTotal: count ?? 0 });
-      setCache(key, fallback);
-      setContacts(fallback.contacts);
-      setTotal(fallback.total);
+      setCache(key, { contacts: [], total: count ?? 0 });
+      setContacts([]);
+      setTotal(count ?? 0);
       setLoading(false);
       return;
     }
@@ -220,21 +186,9 @@ export function useContacts({
       tags: byContact.get(c.id as string) ?? [],
       traffic_type: trafficByContact.get(c.id as string) ?? null,
     }));
-    const pageResult = sampleContactPage({
-      search,
-      source,
-      book,
-      sort,
-      page,
-      pageSize,
-      tagId,
-      live: merged,
-      liveTotal: count ?? 0,
-    });
-
-    setCache(key, pageResult);
-    setContacts(pageResult.contacts);
-    setTotal(pageResult.total);
+    setCache(key, { contacts: merged, total: count ?? 0 });
+    setContacts(merged);
+    setTotal(count ?? 0);
     setLoading(false);
   }, [userId, search, tagId, source, book, sort, page, pageSize]);
 
@@ -248,12 +202,12 @@ export function useContacts({
     const supabase = getSupabase();
     const { data, error: err } = await supabase
       .from('contacts')
-      .insert({
+      .insert(await withTenant({
         phone: contactPayload.phone,
         name: contactPayload.name ?? null,
         email: contactPayload.email ?? null,
         custom_fields: contactPayload.custom_fields ?? {},
-      })
+      }))
       .select()
       .single();
     if (err) {
@@ -366,16 +320,8 @@ export function useContactBook() {
       prospect: counted[3].count ?? 0,
       monthClients: monthCount.count ?? 0,
     };
-    const sample = storyBook();
-    const tally: AccountTally = {
-      active: live.active + sample.active,
-      recent: live.recent + sample.recent,
-      old: live.old + sample.old,
-      prospect: live.prospect + sample.prospect,
-      monthClients: live.monthClients + sample.monthClients,
-    };
-    setCache('contacts:book', tally);
-    setCounts(tally);
+    setCache('contacts:book', live);
+    setCounts(live);
     setError(null);
     setLoading(false);
   }, [userId]);

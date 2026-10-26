@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { type PeriodRange } from '@/lib/dashboard';
-import { storyMetrics } from '@/lib/mock/story';
 import { cacheFresh, peekCache, setCache } from '@/lib/queryCache';
 
 // ============================================================================
@@ -230,21 +229,11 @@ export function useSalesDashboard(range: PeriodRange) {
     if (!peekCache(cacheKey)) setLoading(true);
     setError(null);
     try {
-      const supabase = getSupabase();
-      const { data: cfg } = await supabase
-        .from('app_settings')
-        .select('demo_mode')
-        .eq('id', 1)
-        .maybeSingle();
-      const demo = Boolean((cfg as { demo_mode?: boolean } | null)?.demo_mode);
-      let next = demo ? storyMetrics(range) : await loadRealMetrics(range);
-      if (next.won.count === 0 && next.lost.count === 0 && next.forecast.openCount === 0) next = storyMetrics(range);
+      const next = await loadRealMetrics(range);
       setCache(cacheKey, next);
       setMetrics(next);
-    } catch {
-      const next = storyMetrics(range);
-      setCache(cacheKey, next);
-      setMetrics(next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível ler o painel.');
     } finally {
       setLoading(false);
     }

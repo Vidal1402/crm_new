@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
-import { storyOperators } from '@/lib/mock/story';
 import { cacheFresh, peekCache, setCache } from '@/lib/queryCache';
 
 export interface Operator {
@@ -27,9 +26,8 @@ export function useOperators() {
       const { data } = await supabase.schema('whatsapp_hub').rpc('list_operators');
       if (!cancelled) {
         const next = (data ?? []) as Operator[];
-        const list = next.length > 0 ? next : storyOperators();
-        setCache(OPERATORS_KEY, list);
-        setOperators(list);
+        setCache(OPERATORS_KEY, next);
+        setOperators(next);
         setLoading(false);
       }
     })();

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAppUser } from '@/app/providers/AppUserProvider';
-import { mergeById, storyTags } from '@/lib/mock/story';
 import { cacheFresh, peekCache, setCache } from '@/lib/queryCache';
 import type { Tag } from '@/types/db';
 
@@ -44,7 +43,8 @@ export function useTags(): UseTagsResult {
       .from('tags')
       .select('*')
       .order('name', { ascending: true });
-    const next = mergeById(storyTags(), err ? [] : ((data ?? []) as Tag[]));
+    const next = err ? [] : ((data ?? []) as Tag[]);
+    if (err) setError(err.message);
     setCache(key, next);
     setTags(next);
     setLoading(false);

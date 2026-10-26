@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAppUser } from '@/app/providers/AppUserProvider';
-import { isStoryId, mergeById, storyTemplates } from '@/lib/mock/story';
+import { isStoryId } from '@/lib/mock/story';
 import { cacheFresh, peekCache, setCache } from '@/lib/queryCache';
 import type { Template } from '@/types/templates';
 
@@ -41,7 +41,8 @@ export function useTemplates(): UseTemplatesResult {
       .from('templates')
       .select('*')
       .order('created_at', { ascending: false });
-    const next = mergeById(storyTemplates(), err ? [] : ((data ?? []) as Template[]));
+    const next = err ? [] : ((data ?? []) as Template[]);
+    if (err) setError(err.message);
     setCache(key, next);
     setTemplates(next);
     setLoading(false);

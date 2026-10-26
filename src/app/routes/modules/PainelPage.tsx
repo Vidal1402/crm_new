@@ -4,13 +4,16 @@ import { BarChart3, CalendarRange, Download, Plus, TrendingDown, TrendingUp, Act
 import { brl } from '@/lib/dashboard';
 import { STORAGE_KEYS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import { useCrmFeed } from '@/hooks/useCrmFeed';
+import { useOperators } from '@/hooks/useOperators';
+import { useConversations } from '@/hooks/useConversations';
 import {
   buildSnapshot,
   defaultWindow,
-  sampleRows,
   type BoardCard,
   type BoardFocus,
   type BoardMode,
+  type BoardRow,
   type BoardWindow,
 } from '@/lib/periodBoard';
 
@@ -42,8 +45,52 @@ function longDay(day: string): string {
 }
 
 export default function PainelPage() {
-  const [today] = useState(() => new Date());
-  const rows = useMemo(() => sampleRows(today), [today]);
+  const feed = useCrmFeed();
+  const { operators } = useOperators();
+  const inbox = useConversations();
+  const rows = useMemo(() => {
+    const owner = (id: string | null) => operators.find((item) => item.user_id === id)?.name || operators.find((item) => item.user_id === id)?.email || 'Sem dono';
+    const commercial: BoardRow[] = feed.deals.map((deal) => ({
+      id: deal.id,
+      mode: 'comercial',
+      contact: deal.contactName,
+      kind: deal.status,
+      product: deal.title,
+      activity: deal.stageName,
+      owner: owner(deal.ownerId),
+      stage: deal.stageName,
+      occurredOn: deal.createdAt.slice(0, 10),
+      value: deal.value,
+      outcome: deal.status === 'won' ? 'won' : deal.status === 'lost' ? 'lost' : 'entered',
+    }));
+    const tasks: BoardRow[] = feed.activities.map((item) => ({
+      id: item.id,
+      mode: 'tarefas',
+      contact: item.contactName,
+      kind: item.type,
+      product: item.title,
+      activity: item.title,
+      owner: owner(item.ownerId),
+      stage: item.done ? 'Concluída' : 'Aberta',
+      occurredOn: (item.dueAt ?? new Date().toISOString()).slice(0, 10),
+      value: 0,
+      outcome: item.done ? 'won' : 'open',
+    }));
+    const talks: BoardRow[] = inbox.conversations.map((item) => ({
+      id: item.id,
+      mode: 'atendimento',
+      contact: item.contact?.name || 'Sem nome',
+      kind: item.channel,
+      product: item.lastMessagePreview || '',
+      activity: item.status,
+      owner: owner(item.assigned_to),
+      stage: item.status,
+      occurredOn: (item.last_message_at ?? item.created_at).slice(0, 10),
+      value: 0,
+      outcome: item.status === 'closed' ? 'won' : 'open',
+    }));
+    return [...commercial, ...tasks, ...talks];
+  }, [feed.deals, feed.activities, inbox.conversations, operators]);
   const [period, setPeriod] = useState<BoardWindow>(() => defaultWindow(new Date()));
   const [mode, setMode] = useState<BoardMode>('comercial');
   const [focus, setFocus] = useState<BoardFocus>('entered');
@@ -57,7 +104,7 @@ export default function PainelPage() {
       <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-[1.65rem] font-semibold tracking-tight text-[#111827]">Painel</h1>
-          <p className="text-sm text-[#6B7280]">Resumo do período. Os números são um exemplo.</p>
+          <p className="text-sm text-[#6B7280]">Resumo do período com os registros da conta.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <label className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#111827]">

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
-import { isStoryId, storyProfile } from '@/lib/mock/story';
+import { withTenant } from '@/lib/tenantWrite';
+import { isStoryId } from '@/lib/mock/story';
 import type { Contact } from '@/types/db';
 import type { Message } from '@/types/inbox';
 import type { Deal } from '@/types/crm';
@@ -44,11 +45,10 @@ export function useContactProfile(id: string): UseContactProfileResult {
     setLoading(true);
     setError(null);
     if (isStoryId(id)) {
-      const profile = storyProfile(id);
-      setContact(profile.contact);
-      setDeals(profile.deals);
-      setTimeline(profile.timeline);
-      setError(profile.contact ? null : 'Conta de exemplo não encontrada.');
+      setContact(null);
+      setDeals([]);
+      setTimeline([]);
+      setError('Contato não encontrado.');
       setLoading(false);
       return;
     }
@@ -148,14 +148,11 @@ export function useContactProfile(id: string): UseContactProfileResult {
     async (body: string) => {
       const text = body.trim();
       if (!text) return;
-      if (isStoryId(id)) {
-        setTimeline((cur) => [{ id: `story-note-${Date.now()}`, at: new Date().toISOString(), kind: 'note', label: 'Nota', text }, ...cur]);
-        return;
-      }
+      if (isStoryId(id)) return;
       const supabase = getSupabase();
       const { error: err } = await supabase
         .from('crm_activities')
-        .insert({ contact_id: id, type: 'note', body: text });
+        .insert(await withTenant({ contact_id: id, type: 'note', body: text }));
       if (err) {
         setError(err.message);
         return;

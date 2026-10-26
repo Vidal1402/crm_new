@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAppUser } from '@/app/providers/AppUserProvider';
-import { isStoryId, mergeById, storyLinks } from '@/lib/mock/story';
+import { isStoryId } from '@/lib/mock/story';
 
 export type UtmDestinationType = 'landing' | 'whatsapp' | 'instagram' | 'other';
 
@@ -51,8 +51,9 @@ export function useUtmLinks() {
       .from('utm_links')
       .select('*')
       .order('created_at', { ascending: false });
-    if (err) setError(null);
-    setLinks(mergeById(storyLinks(), err ? [] : ((data ?? []) as UtmLink[])));
+    if (err) setError(err.message);
+    const next = err ? [] : ((data ?? []) as UtmLink[]);
+    setLinks(next);
     setLoading(false);
   }, []);
 
