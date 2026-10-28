@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { inPeriod, mapDeal } from '../src/lib/crmFeed.ts';
+import { goalFunnelRows, inPeriod, mapDeal } from '../src/lib/crmFeed.ts';
 
 test('mapDeal reads the joined contact, stage and pipeline', () => {
   const deal = mapDeal({
@@ -21,6 +21,14 @@ test('mapDeal reads the joined contact, stage and pipeline', () => {
   assert.equal(deal.stageName, 'Ganho');
   assert.equal(deal.value, 1500.5);
   assert.equal(deal.status, 'won');
+});
+
+test('goalFunnelRows keeps a deal funnel when the pipeline list is empty', () => {
+  assert.deepEqual(
+    goalFunnelRows([], [{ pipelineId: 'p1', pipelineName: 'Comercial' }]),
+    [{ id: 'p1', name: 'Comercial' }],
+  );
+  assert.deepEqual(goalFunnelRows([], [{ pipelineId: '', pipelineName: 'Sem funil' }]), []);
 });
 
 test('inPeriod keeps the current month and drops the previous one', () => {

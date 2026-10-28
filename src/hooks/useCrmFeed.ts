@@ -194,6 +194,27 @@ export function useCrmFeed() {
     await reload();
   }, [reload]);
 
+  const ensurePipeline = useCallback(async (name: string) => {
+    const supabase = getSupabase();
+    const existing = await supabase.from('pipelines').select('id').eq('kind', 'comercial').order('position').limit(1);
+    const found = existing.data?.[0]?.id;
+    if (found) return String(found);
+    const payload = await withTenant({ name, kind: 'comercial', position: 0, is_default: true });
+    const { data, error: err } = await supabase.from('pipelines').insert(payload).select('id').single();
+    if (err || !data) {
+      setError(err?.message ?? 'Não foi possível criar o funil da meta.');
+      return null;
+    }
+    const stages = await Promise.all([
+      withTenant({ pipeline_id: data.id, name: 'Novo lead', position: 0, is_won: false, is_lost: false, probability: 10 }),
+      withTenant({ pipeline_id: data.id, name: 'Em andamento', position: 1, is_won: false, is_lost: false, probability: 50 }),
+      withTenant({ pipeline_id: data.id, name: 'Ganho', position: 2, is_won: true, is_lost: false, probability: 100 }),
+      withTenant({ pipeline_id: data.id, name: 'Perdido', position: 3, is_won: false, is_lost: true, probability: 0 }),
+    ]);
+    await supabase.from('stages').insert(stages);
+    return String(data.id);
+  }, []);
+
   const setGoal = useCallback(async (pipelineId: string, month: string, target: number) => {
     const supabase = getSupabase();
     const payload = await withTenant({
@@ -236,6 +257,7 @@ export function useCrmFeed() {
     addMeeting,
     addContact,
     setGoal,
+    ensurePipeline,
     addStep,
   };
 }

@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { KpiCard, KpiRow, ModuleHeader, Panel } from '@/components/modules/ModuleChrome';
 import { useCrmFeed } from '@/hooks/useCrmFeed';
+import { goalFunnelRows } from '@/lib/crmFeed';
 
 const TIP = { background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 12 };
 const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -11,6 +12,8 @@ export default function MetasPage() {
   const now = new Date();
   const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [goalDraft, setGoalDraft] = useState('0');
+  const [editingGoal, setEditingGoal] = useState(false);
   const inMonth = (iso: string) => iso.slice(0, 7) === month;
   const won = feed.deals.filter((deal) => deal.status === 'won' && inMonth(deal.createdAt));
   const lost = feed.deals.filter((deal) => deal.status === 'lost' && inMonth(deal.createdAt));
@@ -24,7 +27,8 @@ export default function MetasPage() {
       perdidos: feed.deals.filter((deal) => deal.status === 'lost' && deal.createdAt.slice(0, 7) === key).length,
     };
   });
-  const funnels = feed.pipelines.map((pipeline) => {
+  const funnelList = goalFunnelRows(feed.pipelines, feed.deals);
+  const funnels = funnelList.map((pipeline) => {
     const rows = feed.deals.filter((deal) => deal.pipelineId === pipeline.id);
     return {
       id: pipeline.id,
@@ -36,15 +40,60 @@ export default function MetasPage() {
       abertos: rows.filter((deal) => deal.status === 'open').length,
     };
   });
+  const singleGoal = funnels.length <= 1;
+
+  useEffect(() => {
+    if (!editingGoal) setGoalDraft(String(target));
+  }, [target, editingGoal]);
+
+  async function saveGoal(raw = goalDraft) {
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < 0 || !singleGoal) return;
+    const current = funnels[0];
+    if (current) {
+      if (value === current.meta) return;
+      await feed.setGoal(current.id, month, value);
+      return;
+    }
+    if (value === target) return;
+    const pipelineId = await feed.ensurePipeline('Comercial');
+    if (!pipelineId) return;
+    await feed.setGoal(pipelineId, month, value);
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-5">
       <ModuleHeader title="Metas" subtitle={`${now.toLocaleDateString('pt-BR', { month: 'long' })} · negócios ganhos contra a meta gravada.`} />
       {feed.error ? <p className="text-sm text-[#DC2626]">{feed.error}</p> : null}
       <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5">
-        <div className="text-[12px] text-[#6B7280]">Meta do mês</div>
-        <div className="mt-1 text-[2.75rem] font-semibold tracking-tight leading-none">{pct}%</div>
-        <p className="mt-2 text-sm text-[#6B7280]">{won.length} de {target} vendas</p>
+        <label htmlFor="meta-mes" className="text-[12px] text-[#6B7280]">Meta do mês</label>
+        <div className="mt-2 flex flex-wrap items-end gap-3">
+          <input
+            id="meta-mes"
+            inputMode="numeric"
+            aria-label="Meta de vendas do mês"
+            value={singleGoal ? goalDraft : String(target)}
+            disabled={!singleGoal}
+            onFocus={() => setEditingGoal(true)}
+            onChange={(event) => setGoalDraft(event.target.value.replace(/[^\d]/g, ''))}
+            onBlur={() => {
+              setEditingGoal(false);
+              void saveGoal();
+            }}
+            className="w-28 rounded-md border border-[#E5E7EB] px-3 py-2 text-[2rem] font-semibold tracking-tight text-[#111827] disabled:bg-white"
+          />
+          {singleGoal ? (
+            <button type="button" onClick={() => void saveGoal()} className="mb-1 rounded-md bg-[#111827] px-3 py-2 text-sm text-white">
+              Gravar
+            </button>
+          ) : null}
+          <div className="mb-1 text-[2rem] font-semibold tracking-tight leading-none text-[#111827]">{pct}%</div>
+        </div>
+        <p className="mt-2 text-sm text-[#6B7280]">
+          {singleGoal
+            ? `${won.length} de ${target} vendas. Digite a quantidade e grave.`
+            : `${won.length} de ${target} vendas. Ajuste a meta de cada funil na tabela.`}
+        </p>
         <div className="mt-3 h-2 w-full max-w-xs overflow-hidden rounded-full bg-[#F3F4F6]">
           <div className="h-full rounded-full bg-[#22C55E]" style={{ width: `${Math.min(pct, 100)}%` }} />
         </div>
@@ -82,6 +131,13 @@ export default function MetasPage() {
               </tr>
             </thead>
             <tbody>
+              {funnels.length === 0 ? (
+                <tr className="border-t border-[#F3F4F6]">
+                  <td colSpan={6} className="px-5 py-4 text-sm text-[#6B7280]">
+                    Nenhum funil nesta conta. A meta gravada acima cria o funil comercial.
+                  </td>
+                </tr>
+              ) : null}
               {funnels.map((row) => (
                 <tr key={row.id} className="border-t border-[#F3F4F6]">
                   <td className="px-5 py-3">{row.name}</td>

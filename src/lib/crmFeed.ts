@@ -79,6 +79,21 @@ function one<T>(value: T | T[] | null | undefined): T | null {
   return value ?? null;
 }
 
+export function goalFunnelRows(
+  pipelines: { id: string; name: string }[],
+  deals: { pipelineId: string; pipelineName: string }[],
+): { id: string; name: string }[] {
+  const rows = new Map<string, string>();
+  for (const pipeline of pipelines) {
+    if (pipeline.id) rows.set(pipeline.id, pipeline.name || 'Funil');
+  }
+  for (const deal of deals) {
+    if (!deal.pipelineId || rows.has(deal.pipelineId)) continue;
+    rows.set(deal.pipelineId, deal.pipelineName || 'Funil');
+  }
+  return [...rows.entries()].map(([id, name]) => ({ id, name }));
+}
+
 export function mapDeal(row: DealRow): FeedDeal {
   const status = row.status === 'won' || row.status === 'lost' ? row.status : 'open';
   return {
