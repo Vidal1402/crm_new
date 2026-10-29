@@ -138,14 +138,28 @@ function createMap(el: HTMLDivElement, opts: { zoom: number; pitch: number; bear
   });
   map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
   let fallback = false;
-  const onLoad = () => addHeat(map, zones);
+  let painted = false;
+  const onLoad = () => {
+    map.resize();
+    addHeat(map, zones);
+  };
   map.on('load', onLoad);
-  map.on('error', () => {
-    if (fallback || map.getSource('heat')) return;
+  map.on('idle', () => {
+    painted = true;
+  });
+  const useRaster = () => {
+    if (fallback) return;
     fallback = true;
     map.setStyle(FALLBACK_STYLE);
-    map.once('load', onLoad);
+    map.once('style.load', onLoad);
+  };
+  map.on('error', () => {
+    if (!painted) useRaster();
   });
+  const timer = window.setTimeout(() => {
+    if (!painted) useRaster();
+  }, 2500);
+  map.on('remove', () => window.clearTimeout(timer));
   return map;
 }
 
@@ -280,14 +294,15 @@ export function TerritoryHeatmap({
           </ul>
         ) : null}
       </div>
-      <div className="grid overflow-hidden rounded-xl border border-[#E5E7EB] lg:grid-cols-2">
+      <style>{'.territory-map .maplibregl-map{height:100%;width:100%}.territory-map .maplibregl-canvas{height:100%!important;width:100%!important;max-width:none!important}'}</style>
+      <div className="territory-map grid overflow-hidden rounded-xl border border-[#E5E7EB] lg:grid-cols-2">
         <div>
           <div className="border-b border-[#F3F4F6] px-3 py-1.5 text-[11px] text-[#6B7280]">Mapa de calor</div>
-          <div ref={overviewEl} className="h-[400px] w-full bg-[#E8EEE9]" />
+          <div ref={overviewEl} className="relative h-[400px] w-full bg-[#E8EEE9]" />
         </div>
         <div className="border-t border-[#E5E7EB] lg:border-l lg:border-t-0">
           <div className="border-b border-[#F3F4F6] px-3 py-1.5 text-[11px] text-[#6B7280]">Vista da rua (3D)</div>
-          <div ref={streetEl} className="h-[400px] w-full bg-[#E8EEE9]" />
+          <div ref={streetEl} className="relative h-[400px] w-full bg-[#E8EEE9]" />
         </div>
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#6B7280]">
