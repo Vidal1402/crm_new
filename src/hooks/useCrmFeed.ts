@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { geocodeCity } from '@/lib/geocode';
 import { getSupabase } from '@/lib/supabase';
 import { withTenant } from '@/lib/tenantWrite';
 import {
@@ -139,6 +140,30 @@ export function useCrmFeed() {
     void reload();
   }, [reload]);
 
+  useEffect(() => {
+    const cities = [...new Set(contacts.filter((item) => item.city && item.lat === null).map((item) => item.city))].slice(0, 8);
+    if (cities.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      for (const city of cities) {
+        const point = await geocodeCity(city);
+        if (cancelled || !point) continue;
+        const targets = contacts.filter((item) => item.city === city && item.lat === null);
+        setContacts((rows) => rows.map((row) => (row.city === city && row.lat === null ? { ...row, lat: point.lat, lng: point.lng } : row)));
+        const supabase = getSupabase();
+        for (const contact of targets) {
+          const current = await supabase.from('contacts').select('custom_fields').eq('id', contact.id).single();
+          const fields = { ...((current.data?.custom_fields as Record<string, unknown> | null) ?? {}), lat: point.lat, lng: point.lng };
+          const { error: err } = await supabase.from('contacts').update({ custom_fields: fields }).eq('id', contact.id);
+          if (err) setError(err.message);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [contacts]);
+
   const setActivityDone = useCallback(async (id: string, done: boolean, body?: string) => {
     const supabase = getSupabase();
     const patch: { done: boolean; body?: string } = { done };
@@ -172,12 +197,17 @@ export function useCrmFeed() {
 
   const addContact = useCallback(async (input: { name: string; phone: string; email?: string; city?: string; address?: string; list?: string }) => {
     const supabase = getSupabase();
+    const point = input.city ? await geocodeCity(input.city) : null;
     const payload = await withTenant({
       name: input.name,
       phone: input.phone,
       email: input.email || null,
       kind: 'lead',
-      custom_fields: { city: input.city || '', address: input.address || '' },
+      custom_fields: {
+        city: input.city || '',
+        address: input.address || '',
+        ...(point ? { lat: point.lat, lng: point.lng } : {}),
+      },
     });
     const { data, error: err } = await supabase.from('contacts').insert(payload).select('id').single();
     if (err || !data) {

@@ -57,6 +57,9 @@ export default function ProspeccaoPage() {
         action={zone ? <button type="button" onClick={() => setZone(null)} className="text-xs text-[#6B7280]">Limpar {heatZoneLabel(zone)}</button> : <span className="text-[11px] text-[#9CA3AF]">Cidades dos contatos</span>}
       >
         <TerritoryHeatmap selected={zone} onSelect={setZone} zones={zones} />
+        {zones.length === 0 && feed.contacts.some((item) => item.city) ? (
+          <p className="mt-2 text-xs text-[#6B7280]">Localizando as cidades no mapa.</p>
+        ) : null}
       </Panel>
       <Panel title="Listas">
         <label className="block cursor-pointer rounded-lg border border-[#E5E7EB] px-3 py-3 text-sm text-[#6B7280]">
