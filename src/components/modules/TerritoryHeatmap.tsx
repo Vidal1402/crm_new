@@ -294,15 +294,15 @@ export function TerritoryHeatmap({
           </ul>
         ) : null}
       </div>
-      <style>{'.territory-map .maplibregl-map{height:100%;width:100%}.territory-map .maplibregl-canvas{height:100%!important;width:100%!important;max-width:none!important}'}</style>
+      <style>{'.territory-map .maplibregl-canvas{max-width:none!important}'}</style>
       <div className="territory-map grid overflow-hidden rounded-xl border border-[#E5E7EB] lg:grid-cols-2">
         <div>
           <div className="border-b border-[#F3F4F6] px-3 py-1.5 text-[11px] text-[#6B7280]">Mapa de calor</div>
-          <div ref={overviewEl} className="relative h-[400px] w-full bg-[#E8EEE9]" />
+          <div ref={overviewEl} className="h-[400px] w-full bg-[#E8EEE9]" />
         </div>
         <div className="border-t border-[#E5E7EB] lg:border-l lg:border-t-0">
           <div className="border-b border-[#F3F4F6] px-3 py-1.5 text-[11px] text-[#6B7280]">Vista da rua (3D)</div>
-          <div ref={streetEl} className="relative h-[400px] w-full bg-[#E8EEE9]" />
+          <div ref={streetEl} className="h-[400px] w-full bg-[#E8EEE9]" />
         </div>
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#6B7280]">
