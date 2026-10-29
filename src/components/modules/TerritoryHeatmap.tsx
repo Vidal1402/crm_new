@@ -11,13 +11,13 @@ export interface HeatZone {
   leads: number;
 }
 
-const STYLE = 'https://tiles.openfreemap.org/styles/liberty';
-const FALLBACK_STYLE = {
+const RASTER_STYLE = {
   version: 8 as const,
+  glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
   sources: {
     carto: {
       type: 'raster' as const,
-      tiles: ['https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png'],
+      tiles: ['https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png'],
       tileSize: 256,
       attribution: '© OpenStreetMap © CARTO',
     },
@@ -129,7 +129,7 @@ function addHeat(map: MapType, zones: HeatZone[]) {
 function createMap(el: HTMLDivElement, opts: { zoom: number; pitch: number; bearing: number }, zones: HeatZone[]) {
   const map = new MapLibreMap({
     container: el,
-    style: STYLE,
+    style: RASTER_STYLE,
     center: [-46.64, -23.56],
     zoom: opts.zoom,
     pitch: opts.pitch,
@@ -137,29 +137,10 @@ function createMap(el: HTMLDivElement, opts: { zoom: number; pitch: number; bear
     attributionControl: false,
   });
   map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
-  let fallback = false;
-  let painted = false;
-  const onLoad = () => {
+  map.on('load', () => {
     map.resize();
     addHeat(map, zones);
-  };
-  map.on('load', onLoad);
-  map.on('idle', () => {
-    painted = true;
   });
-  const useRaster = () => {
-    if (fallback) return;
-    fallback = true;
-    map.setStyle(FALLBACK_STYLE);
-    map.once('style.load', onLoad);
-  };
-  map.on('error', () => {
-    if (!painted) useRaster();
-  });
-  const timer = window.setTimeout(() => {
-    if (!painted) useRaster();
-  }, 2500);
-  map.on('remove', () => window.clearTimeout(timer));
   return map;
 }
 
@@ -294,19 +275,18 @@ export function TerritoryHeatmap({
           </ul>
         ) : null}
       </div>
-      <style>{'.territory-map .maplibregl-canvas{max-width:none!important}'}</style>
-      <div className="territory-map grid overflow-hidden rounded-xl border border-[#E5E7EB] lg:grid-cols-2">
+      <div className="grid overflow-hidden rounded-xl border border-[#E5E7EB] lg:grid-cols-2">
         <div>
           <div className="border-b border-[#F3F4F6] px-3 py-1.5 text-[11px] text-[#6B7280]">Mapa de calor</div>
-          <div ref={overviewEl} className="h-[400px] w-full bg-[#E8EEE9]" />
+          <div ref={overviewEl} className="w-full bg-[#E8EEE9]" style={{ height: 400 }} />
         </div>
         <div className="border-t border-[#E5E7EB] lg:border-l lg:border-t-0">
           <div className="border-b border-[#F3F4F6] px-3 py-1.5 text-[11px] text-[#6B7280]">Vista da rua (3D)</div>
-          <div ref={streetEl} className="h-[400px] w-full bg-[#E8EEE9]" />
+          <div ref={streetEl} className="w-full bg-[#E8EEE9]" style={{ height: 400 }} />
         </div>
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#6B7280]">
-        <span>OpenStreetMap · sem chave · clique no bairro</span>
+        <span>CARTO e OpenStreetMap · sem chave · clique no bairro</span>
         <div className="flex items-center gap-1">
           <span>baixa</span>
           <span className="h-2 w-4 rounded-sm bg-[#14532D]" />
