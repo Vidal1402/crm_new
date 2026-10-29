@@ -11,19 +11,7 @@ export interface HeatZone {
   leads: number;
 }
 
-const RASTER_STYLE = {
-  version: 8 as const,
-  glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
-  sources: {
-    carto: {
-      type: 'raster' as const,
-      tiles: ['https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '© OpenStreetMap © CARTO',
-    },
-  },
-  layers: [{ id: 'carto', type: 'raster' as const, source: 'carto' }],
-};
+const STYLE = 'https://tiles.openfreemap.org/styles/liberty';
 
 function mulberry32(seed: number) {
   let a = seed;
@@ -129,7 +117,7 @@ function addHeat(map: MapType, zones: HeatZone[]) {
 function createMap(el: HTMLDivElement, opts: { zoom: number; pitch: number; bearing: number }, zones: HeatZone[]) {
   const map = new MapLibreMap({
     container: el,
-    style: RASTER_STYLE,
+    style: STYLE,
     center: [-46.64, -23.56],
     zoom: opts.zoom,
     pitch: opts.pitch,
@@ -286,7 +274,7 @@ export function TerritoryHeatmap({
         </div>
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#6B7280]">
-        <span>CARTO e OpenStreetMap · sem chave · clique no bairro</span>
+        <span>OpenFreeMap · sem chave · clique no bairro</span>
         <div className="flex items-center gap-1">
           <span>baixa</span>
           <span className="h-2 w-4 rounded-sm bg-[#14532D]" />
