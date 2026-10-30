@@ -2,23 +2,42 @@
 function escapeOverpass(text2) {
   return text2.replace(/[.*+?^${}()|[\]\\"]/g, "\\$&");
 }
+var NICHES = {
+  padaria: { key: "shop", value: "bakery" },
+  restaurante: { key: "amenity", value: "restaurant" },
+  farmacia: { key: "amenity", value: "pharmacy" },
+  dentista: { key: "amenity", value: "dentist" },
+  academia: { key: "leisure", value: "fitness_centre" },
+  mercado: { key: "shop", value: "supermarket" },
+  "pet shop": { key: "shop", value: "pet" },
+  oficina: { key: "shop", value: "car_repair" },
+  salao: { key: "shop", value: "hairdresser" }
+};
+function nicheKey(niche) {
+  return niche.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+function nicheTag(niche) {
+  return NICHES[nicheKey(niche)] ?? null;
+}
 function areaClause(area) {
   if (!Number.isFinite(area.lat) || !Number.isFinite(area.lng)) return null;
   if (area.lat < -90 || area.lat > 90 || area.lng < -180 || area.lng > 180) return null;
   const { south, west, north, east } = area;
   const boxed = [south, west, north, east].every((value) => Number.isFinite(value));
-  if (boxed && north > south && east > west && north - south <= 1.5 && east - west <= 1.5) {
+  if (boxed && north > south && east > west && north - south <= 0.2 && east - west <= 0.2) {
     return `(${south},${west},${north},${east})`;
   }
   return `(around:12000,${area.lat},${area.lng})`;
 }
-function placeQuery(name, area) {
-  const raw = name.trim();
+function placeQuery(niche, area) {
+  const raw = niche.trim();
   if (raw.length < 3 || raw.length > 60) return null;
   const clause = areaClause(area);
   if (!clause) return null;
+  const tag = nicheTag(raw);
+  const filter = tag ? `["${tag.key}"="${tag.value}"]` : `["name"~"${escapeOverpass(raw)}",i]`;
   return `[out:json][timeout:12];
-nwr["name"~"${escapeOverpass(raw)}",i]${clause};
+nwr${filter}${clause};
 out center 15;`;
 }
 function text(value) {
@@ -88,6 +107,31 @@ function parseNominatim(data, fallbackCity) {
   }
   return take(hits, fallbackCity);
 }
+var SKIP_KEYS = /* @__PURE__ */ new Set(["highway", "boundary", "place", "waterway", "natural", "landuse"]);
+function parsePhoton(data, fallbackCity) {
+  const features = data?.features;
+  if (!Array.isArray(features)) return [];
+  const hits = [];
+  for (const feature of features) {
+    const row = feature;
+    const props = row.properties ?? {};
+    if (SKIP_KEYS.has(text(props.osm_key))) continue;
+    const name = text(props.name);
+    const coordinates = row.geometry?.coordinates ?? [];
+    const lng = coord(coordinates[0]);
+    const lat = coord(coordinates[1]);
+    if (!name || lat === null || lng === null) continue;
+    hits.push({
+      name,
+      city: text(props.city) || fallbackCity.trim(),
+      address: [text(props.street), text(props.housenumber)].filter(Boolean).join(", "),
+      phone: text(props.phone) || text(props["contact:phone"]),
+      lat,
+      lng
+    });
+  }
+  return take(hits, fallbackCity);
+}
 
 // src/lib/placeLookup.ts
 var OVERPASS = [
@@ -118,6 +162,21 @@ async function overpassPlaces(query, city, signal) {
   }
   return [];
 }
+async function photonPlaces(niche, city, area) {
+  const search = new URL("https://photon.komoot.io/api/");
+  search.searchParams.set("q", niche.trim());
+  search.searchParams.set("lat", String(area.lat));
+  search.searchParams.set("lon", String(area.lng));
+  search.searchParams.set("limit", "15");
+  const tag = nicheTag(niche);
+  if (tag) search.searchParams.set("osm_tag", `${tag.key}:${tag.value}`);
+  const response = await fetch(search, {
+    headers: { Accept: "application/json", "User-Agent": USER_AGENT },
+    signal: AbortSignal.timeout(8e3)
+  });
+  if (!response.ok) throw new Error("A busca de empresas n\xE3o respondeu.");
+  return parsePhoton(await response.json(), city);
+}
 async function nominatimPlaces(name, city) {
   const search = new URL("https://nominatim.openstreetmap.org/search");
   search.searchParams.set("q", `${name.trim()}, ${city.trim()}, Brasil`);
@@ -133,30 +192,40 @@ async function nominatimPlaces(name, city) {
   if (!response.ok) throw new Error("A busca de empresas n\xE3o respondeu.");
   return parseNominatim(await response.json(), city);
 }
-async function findPlaces(name, city, area) {
-  const query = placeQuery(name, area);
+function pickList(overpass, listed, named) {
+  if (overpass.length >= 2) return overpass;
+  if (listed.length >= 2) return listed;
+  if (named.length >= 2) return named;
+  return overpass.length ? overpass : listed.length ? listed : named;
+}
+async function findPlaces(niche, city, area) {
+  const query = placeQuery(niche, area);
   if (!query) return [];
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 4e3);
+  const timer = setTimeout(() => controller.abort(), 5e3);
   const overpass = overpassPlaces(query, city, controller.signal);
-  let named = [];
+  let listed = [];
   try {
-    named = await nominatimPlaces(name, city);
-  } catch (error) {
-    const fromOverpass2 = await overpass;
-    clearTimeout(timer);
-    controller.abort();
-    if (fromOverpass2.length > 0) return fromOverpass2;
-    throw error;
+    listed = await photonPlaces(niche, city, area);
+  } catch {
+    listed = [];
   }
   const fromOverpass = await Promise.race([
     overpass,
-    new Promise((resolve) => setTimeout(() => resolve([]), 1200))
+    new Promise((resolve) => setTimeout(() => resolve([]), 1500))
   ]);
   clearTimeout(timer);
   controller.abort();
-  return fromOverpass.length > 0 ? fromOverpass : named;
+  if (fromOverpass.length >= 2 || listed.length >= 2) return pickList(fromOverpass, listed, []);
+  try {
+    const named = await nominatimPlaces(niche, city);
+    return pickList(fromOverpass, listed, named);
+  } catch (error) {
+    if (fromOverpass.length > 0 || listed.length > 0) return pickList(fromOverpass, listed, []);
+    throw error;
+  }
 }
 export {
-  findPlaces
+  findPlaces,
+  nicheTag
 };

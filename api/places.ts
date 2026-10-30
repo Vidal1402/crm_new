@@ -1,4 +1,4 @@
-import { findPlaces } from './place-search.js';
+import { findPlaces, nicheTag } from './place-search.js';
 
 type PlaceArea = {
   lat: number;
@@ -12,6 +12,7 @@ type PlaceArea = {
 type ApiRequest = {
   method?: string;
   body?: {
+    niche?: unknown;
     name?: unknown;
     city?: unknown;
     lat?: unknown;
@@ -37,17 +38,17 @@ function num(value: unknown): number | undefined {
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST') return res.status(405).end();
   const body = req.body ?? {};
-  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  const niche = typeof body.niche === 'string' ? body.niche.trim() : typeof body.name === 'string' ? body.name.trim() : '';
   const city = typeof body.city === 'string' ? body.city.trim() : '';
   const lat = num(body.lat);
   const lng = num(body.lng);
-  if (name.length < 3 || !city || lat === undefined || lng === undefined) {
-    return res.status(400).json({ error: 'Informe a empresa e a cidade.' });
+  if (niche.length < 3 || !city || lat === undefined || lng === undefined) {
+    return res.status(400).json({ error: 'Informe o nicho e a cidade.' });
   }
   const area: PlaceArea = { lat, lng, south: num(body.south), west: num(body.west), north: num(body.north), east: num(body.east) };
   try {
-    const places = await findPlaces(name, city, area);
-    return res.status(200).json({ places });
+    const places = await findPlaces(niche, city, area);
+    return res.status(200).json({ places, knownNiche: nicheTag(niche) !== null });
   } catch {
     return res.status(502).json({ error: 'A busca de empresas não respondeu. Tente de novo.' });
   }

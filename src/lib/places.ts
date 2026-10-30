@@ -20,6 +20,26 @@ export function escapeOverpass(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\"]/g, '\\$&');
 }
 
+const NICHES: Record<string, { key: string; value: string }> = {
+  padaria: { key: 'shop', value: 'bakery' },
+  restaurante: { key: 'amenity', value: 'restaurant' },
+  farmacia: { key: 'amenity', value: 'pharmacy' },
+  dentista: { key: 'amenity', value: 'dentist' },
+  academia: { key: 'leisure', value: 'fitness_centre' },
+  mercado: { key: 'shop', value: 'supermarket' },
+  'pet shop': { key: 'shop', value: 'pet' },
+  oficina: { key: 'shop', value: 'car_repair' },
+  salao: { key: 'shop', value: 'hairdresser' },
+};
+
+export function nicheKey(niche: string): string {
+  return niche.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+export function nicheTag(niche: string): { key: string; value: string } | null {
+  return NICHES[nicheKey(niche)] ?? null;
+}
+
 export function ringBox(ring: [number, number][]): PlaceArea | null {
   if (ring.length < 3) return null;
   let west = Infinity;
@@ -42,18 +62,20 @@ function areaClause(area: PlaceArea): string | null {
   if (area.lat < -90 || area.lat > 90 || area.lng < -180 || area.lng > 180) return null;
   const { south, west, north, east } = area;
   const boxed = [south, west, north, east].every((value) => Number.isFinite(value));
-  if (boxed && north! > south! && east! > west! && north! - south! <= 1.5 && east! - west! <= 1.5) {
+  if (boxed && north! > south! && east! > west! && north! - south! <= 0.2 && east! - west! <= 0.2) {
     return `(${south},${west},${north},${east})`;
   }
   return `(around:12000,${area.lat},${area.lng})`;
 }
 
-export function placeQuery(name: string, area: PlaceArea): string | null {
-  const raw = name.trim();
+export function placeQuery(niche: string, area: PlaceArea): string | null {
+  const raw = niche.trim();
   if (raw.length < 3 || raw.length > 60) return null;
   const clause = areaClause(area);
   if (!clause) return null;
-  return `[out:json][timeout:12];\nnwr["name"~"${escapeOverpass(raw)}",i]${clause};\nout center 15;`;
+  const tag = nicheTag(raw);
+  const filter = tag ? `["${tag.key}"="${tag.value}"]` : `["name"~"${escapeOverpass(raw)}",i]`;
+  return `[out:json][timeout:12];\nnwr${filter}${clause};\nout center 15;`;
 }
 
 function text(value: unknown): string {
@@ -133,6 +155,36 @@ export function parseNominatim(data: unknown, fallbackCity: string): PlaceHit[] 
       city: text(address.city) || text(address.town) || text(address.municipality) || fallbackCity.trim(),
       address: [text(address.road), text(address.house_number)].filter(Boolean).join(', '),
       phone: text(tags.phone) || text(tags['contact:phone']),
+      lat,
+      lng,
+    });
+  }
+  return take(hits, fallbackCity);
+}
+
+const SKIP_KEYS = new Set(['highway', 'boundary', 'place', 'waterway', 'natural', 'landuse']);
+
+export function parsePhoton(data: unknown, fallbackCity: string): PlaceHit[] {
+  const features = (data as { features?: unknown })?.features;
+  if (!Array.isArray(features)) return [];
+  const hits: PlaceHit[] = [];
+  for (const feature of features) {
+    const row = feature as {
+      geometry?: { coordinates?: unknown[] };
+      properties?: Record<string, unknown>;
+    };
+    const props = row.properties ?? {};
+    if (SKIP_KEYS.has(text(props.osm_key))) continue;
+    const name = text(props.name);
+    const coordinates = row.geometry?.coordinates ?? [];
+    const lng = coord(coordinates[0]);
+    const lat = coord(coordinates[1]);
+    if (!name || lat === null || lng === null) continue;
+    hits.push({
+      name,
+      city: text(props.city) || fallbackCity.trim(),
+      address: [text(props.street), text(props.housenumber)].filter(Boolean).join(', '),
+      phone: text(props.phone) || text(props['contact:phone']),
       lat,
       lng,
     });

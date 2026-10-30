@@ -1,4 +1,6 @@
-import { parseNominatim, parseOverpass, placeQuery, type PlaceArea, type PlaceHit } from './places';
+import { nicheTag, parseNominatim, parseOverpass, parsePhoton, placeQuery, type PlaceArea, type PlaceHit } from './places';
+
+export { nicheTag };
 
 const OVERPASS = [
   'https://overpass-api.de/api/interpreter',
@@ -31,6 +33,22 @@ async function overpassPlaces(query: string, city: string, signal: AbortSignal):
   return [];
 }
 
+async function photonPlaces(niche: string, city: string, area: PlaceArea): Promise<PlaceHit[]> {
+  const search = new URL('https://photon.komoot.io/api/');
+  search.searchParams.set('q', niche.trim());
+  search.searchParams.set('lat', String(area.lat));
+  search.searchParams.set('lon', String(area.lng));
+  search.searchParams.set('limit', '15');
+  const tag = nicheTag(niche);
+  if (tag) search.searchParams.set('osm_tag', `${tag.key}:${tag.value}`);
+  const response = await fetch(search, {
+    headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!response.ok) throw new Error('A busca de empresas não respondeu.');
+  return parsePhoton(await response.json(), city);
+}
+
 async function nominatimPlaces(name: string, city: string): Promise<PlaceHit[]> {
   const search = new URL('https://nominatim.openstreetmap.org/search');
   search.searchParams.set('q', `${name.trim()}, ${city.trim()}, Brasil`);
@@ -47,27 +65,37 @@ async function nominatimPlaces(name: string, city: string): Promise<PlaceHit[]> 
   return parseNominatim(await response.json(), city);
 }
 
-export async function findPlaces(name: string, city: string, area: PlaceArea): Promise<PlaceHit[]> {
-  const query = placeQuery(name, area);
+function pickList(overpass: PlaceHit[], listed: PlaceHit[], named: PlaceHit[]): PlaceHit[] {
+  if (overpass.length >= 2) return overpass;
+  if (listed.length >= 2) return listed;
+  if (named.length >= 2) return named;
+  return overpass.length ? overpass : listed.length ? listed : named;
+}
+
+export async function findPlaces(niche: string, city: string, area: PlaceArea): Promise<PlaceHit[]> {
+  const query = placeQuery(niche, area);
   if (!query) return [];
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 4000);
+  const timer = setTimeout(() => controller.abort(), 5000);
   const overpass = overpassPlaces(query, city, controller.signal);
-  let named: PlaceHit[] = [];
+  let listed: PlaceHit[] = [];
   try {
-    named = await nominatimPlaces(name, city);
-  } catch (error) {
-    const fromOverpass = await overpass;
-    clearTimeout(timer);
-    controller.abort();
-    if (fromOverpass.length > 0) return fromOverpass;
-    throw error;
+    listed = await photonPlaces(niche, city, area);
+  } catch {
+    listed = [];
   }
   const fromOverpass = await Promise.race([
     overpass,
-    new Promise<PlaceHit[]>((resolve) => setTimeout(() => resolve([]), 1200)),
+    new Promise<PlaceHit[]>((resolve) => setTimeout(() => resolve([]), 1500)),
   ]);
   clearTimeout(timer);
   controller.abort();
-  return fromOverpass.length > 0 ? fromOverpass : named;
+  if (fromOverpass.length >= 2 || listed.length >= 2) return pickList(fromOverpass, listed, []);
+  try {
+    const named = await nominatimPlaces(niche, city);
+    return pickList(fromOverpass, listed, named);
+  } catch (error) {
+    if (fromOverpass.length > 0 || listed.length > 0) return pickList(fromOverpass, listed, []);
+    throw error;
+  }
 }

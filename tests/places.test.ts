@@ -1,17 +1,21 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { CITY_RINGS } from '../src/lib/cityRings.ts';
-import { parseNominatim, parseOverpass, placeQuery, ringBox } from '../src/lib/places.ts';
+import { nicheTag, parseNominatim, parseOverpass, parsePhoton, placeQuery, ringBox } from '../src/lib/places.ts';
 
-test('placeQuery stays inside the named city and escapes the name', () => {
+test('a niche query asks for the category inside the city', () => {
   const rio = ringBox(CITY_RINGS['rio de janeiro']);
   assert.ok(rio);
-  const query = placeQuery('Café. Colombo', rio!);
+  const query = placeQuery('padaria', rio!);
   assert.ok(query);
-  assert.match(query!, /Café\\\. Colombo/);
+  assert.match(query!, /\["shop"="bakery"\]/);
+  assert.match(query!, /around:12000/);
   assert.match(query!, /out center 15/);
+  assert.equal(nicheTag('Salão')?.value, 'hairdresser');
+  const unknown = placeQuery('Café. Colombo', rio!);
+  assert.match(unknown!, /Café\\\. Colombo/);
   assert.equal(placeQuery('ab', rio!), null);
-  const wide = placeQuery('Padaria', { lat: -22.9, lng: -43.2, south: -23, west: -45, north: -20, east: -40 });
+  const wide = placeQuery('padaria', { lat: -22.9, lng: -43.2, south: -23, west: -45, north: -20, east: -40 });
   assert.match(wide!, /around:12000/);
   assert.doesNotMatch(wide!, /-45/);
 });
@@ -20,21 +24,30 @@ test('a city ring wider than the city is rejected', () => {
   assert.equal(ringBox([[-46, -23], [-40, -23], [-40, -20], [-46, -20]]), null);
 });
 
-test('parseOverpass reads the shop name, phone and center', () => {
+test('parseOverpass keeps several businesses from one niche', () => {
   const places = parseOverpass({
     elements: [
-      {
-        center: { lat: -22.905, lon: -43.179 },
-        tags: { name: 'Confeitaria Colombo', phone: '+55 21 2505-1500', 'addr:street': 'Rua Gonçalves Dias', 'addr:housenumber': '32', 'addr:city': 'Rio de Janeiro' },
-      },
+      { lat: -22.91, lon: -43.18, tags: { name: 'Padaria Catete', phone: '+55 21 2558-0001', 'addr:street': 'Rua do Catete', 'addr:city': 'Rio de Janeiro' } },
+      { center: { lat: -22.92, lon: -43.19 }, tags: { name: 'Padaria Napoles', 'addr:city': 'Rio de Janeiro' } },
+      { lat: -22.93, lon: -43.17, tags: { name: 'Padaria do Raphael', 'addr:city': 'Rio de Janeiro' } },
       { tags: { name: 'Sem ponto' } },
     ],
   }, 'Rio de Janeiro');
-  assert.equal(places.length, 1);
-  assert.equal(places[0].name, 'Confeitaria Colombo');
-  assert.equal(places[0].phone, '+55 21 2505-1500');
-  assert.equal(places[0].address, 'Rua Gonçalves Dias, 32');
+  assert.deepEqual(places.map((place) => place.name), ['Padaria Catete', 'Padaria Napoles', 'Padaria do Raphael']);
+  assert.equal(places[0].phone, '+55 21 2558-0001');
   assert.equal(places[0].city, 'Rio de Janeiro');
+});
+
+test('parsePhoton drops a road and keeps the shops', () => {
+  const places = parsePhoton({
+    features: [
+      { geometry: { coordinates: [-43.18, -22.91] }, properties: { name: 'Padaria Catete', osm_key: 'shop', osm_value: 'bakery', city: 'Rio de Janeiro', street: 'Rua do Catete' } },
+      { geometry: { coordinates: [-43.19, -22.92] }, properties: { name: 'Padaria Napoles', osm_key: 'shop', city: 'Rio de Janeiro' } },
+      { geometry: { coordinates: [-43.2, -22.9] }, properties: { name: 'Rua da Padaria', osm_key: 'highway', city: 'Rio de Janeiro' } },
+    ],
+  }, 'Rio de Janeiro');
+  assert.deepEqual(places.map((place) => place.name), ['Padaria Catete', 'Padaria Napoles']);
+  assert.equal(places[0].address, 'Rua do Catete');
 });
 
 test('parseNominatim keeps the city from the address', () => {

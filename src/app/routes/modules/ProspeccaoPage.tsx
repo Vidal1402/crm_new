@@ -17,7 +17,7 @@ export default function ProspeccaoPage() {
   const [list, setList] = useState('Todas');
   const [zone, setZone] = useState<string | null>(null);
   const [newList, setNewList] = useState('');
-  const [company, setCompany] = useState('');
+  const [niche, setNiche] = useState('');
   const [companyCity, setCompanyCity] = useState('Rio de Janeiro');
   const [hits, setHits] = useState<PlaceHit[]>([]);
   const [phones, setPhones] = useState<Record<string, string>>({});
@@ -48,11 +48,11 @@ export default function ProspeccaoPage() {
     if (zone) setCompanyCity(zone);
   }, [zone]);
   const hitKey = (hit: PlaceHit) => `${hit.name}|${hit.lat.toFixed(4)}|${hit.lng.toFixed(4)}`;
-  async function searchCompany() {
-    const name = company.trim();
+  async function searchNiche() {
+    const wanted = niche.trim();
     const city = companyCity.trim();
-    if (name.length < 3 || !city) {
-      setSearchError('Digite a empresa e a cidade.');
+    if (wanted.length < 3 || !city) {
+      setSearchError('Digite a cidade e o nicho.');
       return;
     }
     setSearching(true);
@@ -68,9 +68,9 @@ export default function ProspeccaoPage() {
       const response = await fetch('/api/places', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, city, lat: point.lat, lng: point.lng, ...(box ?? {}) }),
+        body: JSON.stringify({ niche: wanted, city, lat: point.lat, lng: point.lng, ...(box ?? {}) }),
       });
-      const data = await response.json() as { places?: PlaceHit[]; error?: string };
+      const data = await response.json() as { places?: PlaceHit[]; knownNiche?: boolean; error?: string };
       if (!response.ok) {
         setSearchError(data.error || 'A busca de empresas não respondeu. Tente de novo.');
         setHits([]);
@@ -79,7 +79,11 @@ export default function ProspeccaoPage() {
       const places = data.places ?? [];
       setHits(places);
       setPhones(Object.fromEntries(places.map((hit) => [hitKey(hit), hit.phone])));
-      if (places.length === 0) setSearchError('Nenhuma empresa com esse nome nessa cidade.');
+      if (places.length === 0) {
+        setSearchError(data.knownNiche
+          ? 'Nenhuma empresa desse nicho nessa cidade.'
+          : 'Esse nicho não está na lista (padaria, restaurante, farmácia, dentista, academia, mercado, pet shop, oficina, salão). Nada com esse nome nessa cidade.');
+      }
     } catch {
       setSearchError('A busca de empresas não respondeu. Tente de novo.');
       setHits([]);
@@ -145,16 +149,16 @@ export default function ProspeccaoPage() {
           {lists.map((name) => <option key={name}>{name}</option>)}
         </select>
       </div>
-      <Panel title="Buscar empresa" action={<span className="text-[11px] text-[#9CA3AF]">OpenStreetMap</span>}>
+      <Panel title="Buscar por nicho" action={<span className="text-[11px] text-[#9CA3AF]">OpenStreetMap</span>}>
         <form
           className="flex flex-wrap gap-2"
           onSubmit={(event) => {
             event.preventDefault();
-            void searchCompany();
+            void searchNiche();
           }}
         >
-          <input value={company} onChange={(event) => setCompany(event.target.value)} placeholder="Nome da empresa" className={cn(fieldClass, 'min-w-[220px] flex-1')} />
           <input value={companyCity} onChange={(event) => setCompanyCity(event.target.value)} placeholder="Cidade" className={cn(fieldClass, 'w-48')} />
+          <input value={niche} onChange={(event) => setNiche(event.target.value)} placeholder="Nicho, ex. padaria" className={cn(fieldClass, 'min-w-[220px] flex-1')} />
           <button type="submit" disabled={searching} className="h-10 rounded-lg bg-[#111827] px-3 text-sm font-medium text-white disabled:opacity-60">
             {searching ? 'Buscando' : 'Buscar'}
           </button>
