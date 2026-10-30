@@ -129,11 +129,25 @@ function addHeat(map: MapType, zones: HeatZone[]) {
   });
 }
 
-function createMap(el: HTMLDivElement, opts: { zoom: number; pitch: number; bearing: number }, zones: HeatZone[]) {
+function zoneBounds(zones: HeatZone[]): [[number, number], [number, number]] {
+  let west = Infinity;
+  let south = Infinity;
+  let east = -Infinity;
+  let north = -Infinity;
+  for (const zone of zones) {
+    west = Math.min(west, zone.lng);
+    east = Math.max(east, zone.lng);
+    south = Math.min(south, zone.lat);
+    north = Math.max(north, zone.lat);
+  }
+  return [[west, south], [east, north]];
+}
+
+function createMap(el: HTMLDivElement, opts: { center: [number, number]; zoom: number; pitch: number; bearing: number }, zones: HeatZone[]) {
   const map = new MapLibreMap({
     container: el,
     style: STYLE,
-    center: [-46.64, -23.56],
+    center: opts.center,
     zoom: opts.zoom,
     pitch: opts.pitch,
     bearing: opts.bearing,
@@ -174,8 +188,8 @@ export function TerritoryHeatmap({
     const b = streetEl.current;
     if (!a || !b) return;
 
-    const overview = createMap(a, { zoom: 10.4, pitch: 58, bearing: -28 }, zonesRef.current);
-    const street = createMap(b, { zoom: 16.8, pitch: 72, bearing: 24 }, zonesRef.current);
+    const overview = createMap(a, { center: [-51.4, -14.2], zoom: 3.6, pitch: 0, bearing: 0 }, zonesRef.current);
+    const street = createMap(b, { center: [-51.4, -14.2], zoom: 3.6, pitch: 0, bearing: 0 }, zonesRef.current);
     overviewRef.current = overview;
     streetRef.current = street;
 
@@ -218,11 +232,14 @@ export function TerritoryHeatmap({
     if (!overview || !street) return;
     const z = zones.find((item) => item.city === selected);
     if (z) {
-      overview.easeTo({ center: [z.lng, z.lat], zoom: 13, pitch: 62, duration: 700 });
-      street.easeTo({ center: [z.lng, z.lat], zoom: 17.2, pitch: 75, bearing: 32, duration: 700 });
-    } else {
-      overview.easeTo({ center: [-46.64, -23.56], zoom: 10.4, pitch: 58, bearing: -28, duration: 700 });
+      overview.easeTo({ center: [z.lng, z.lat], zoom: 11, pitch: 30, duration: 700 });
+      street.easeTo({ center: [z.lng, z.lat], zoom: 15, pitch: 55, bearing: 24, duration: 700 });
+      return;
     }
+    if (zones.length === 0) return;
+    overview.fitBounds(zoneBounds(zones), { padding: 48, duration: 700, maxZoom: 11 });
+    const first = zones[0];
+    street.easeTo({ center: [first.lng, first.lat], zoom: 14, pitch: 50, duration: 700 });
   }, [selected, zones]);
 
   useEffect(() => {
@@ -231,7 +248,7 @@ export function TerritoryHeatmap({
       return;
     }
     const t = window.setTimeout(() => {
-      const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=pt&lat=-23.55&lon=-46.63`;
+      const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(`${q}, Brasil`)}&limit=5&lang=pt`;
       void fetch(url)
         .then((r) => r.json())
         .then((data: { features?: { properties?: { name?: string; city?: string; street?: string }; geometry: { coordinates: number[] } }[] }) => {
