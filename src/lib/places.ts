@@ -46,6 +46,56 @@ export function nicheTag(niche: string): { key: string; value: string } | null {
   return NICHES[nicheKey(niche)] ?? null;
 }
 
+const CNAE: Record<string, string> = {
+  padaria: '4721102',
+  restaurante: '5611201',
+  farmacia: '4771701',
+  dentista: '8630504',
+  academia: '9313100',
+  mercado: '4712100',
+  'pet shop': '4789004',
+  oficina: '4520001',
+  salao: '9602501',
+};
+
+export function nicheCnae(niche: string): string | null {
+  return CNAE[nicheKey(niche)] ?? null;
+}
+
+export function parseRegistry(
+  data: unknown,
+  fallbackCity: string,
+  cnae: string,
+  point: { lat: number; lng: number },
+  limit: unknown = 10,
+): PlaceHit[] {
+  const rows = (data as { data?: unknown })?.data;
+  if (!Array.isArray(rows)) return [];
+  const hits: PlaceHit[] = [];
+  for (const item of rows) {
+    const row = item as Record<string, unknown>;
+    if (String(row.cnae_fiscal ?? '') !== cnae) continue;
+    if (text(row.descricao_situacao_cadastral) !== 'ATIVA') continue;
+    const name = text(row.nome_fantasia) || text(row.razao_social);
+    if (!name) continue;
+    const street = [text(row.descricao_tipo_de_logradouro), text(row.logradouro), text(row.numero)].filter(Boolean).join(' ');
+    hits.push({
+      name,
+      city: text(row.municipio) || fallbackCity.trim(),
+      address: [street, text(row.bairro)].filter(Boolean).join(', '),
+      phone: text(row.ddd_telefone_1).replace(/\D/g, ''),
+      email: emailOf(text(row.email)),
+      instagram: '',
+      linkedin: '',
+      website: '',
+      lat: point.lat,
+      lng: point.lng,
+    });
+  }
+  hits.sort((a, b) => Number(Boolean(b.phone)) - Number(Boolean(a.phone)) || Number(Boolean(b.email)) - Number(Boolean(a.email)));
+  return hits.slice(0, leadCount(limit));
+}
+
 export function ringBox(ring: [number, number][]): PlaceArea | null {
   if (ring.length < 3) return null;
   let west = Infinity;

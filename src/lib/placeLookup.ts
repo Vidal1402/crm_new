@@ -1,4 +1,4 @@
-import { fillContacts, leadCount, nicheTag, parseNominatim, parseOverpass, parsePhoton, placeQuery, readHomepageLinks, type PlaceArea, type PlaceHit } from './places';
+import { fillContacts, leadCount, nicheCnae, nicheKey, nicheTag, parseNominatim, parseOverpass, parsePhoton, parseRegistry, placeQuery, readHomepageLinks, type PlaceArea, type PlaceHit } from './places';
 
 export { nicheTag };
 
@@ -123,6 +123,41 @@ function pickList(overpass: PlaceHit[], listed: PlaceHit[], named: PlaceHit[]): 
   if (listed.length >= 2) return listed;
   if (named.length >= 2) return named;
   return overpass.length ? overpass : listed.length ? listed : named;
+}
+
+const CITY_IBGE: Record<string, number> = {
+  'rio de janeiro': 3304557,
+  vitoria: 3205309,
+  'vila velha': 3205200,
+  niteroi: 3303302,
+  'sao paulo': 3550308,
+};
+
+async function cityIbge(city: string): Promise<number | null> {
+  const key = nicheKey(city);
+  if (CITY_IBGE[key]) return CITY_IBGE[key];
+  const response = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/municipios?nome=${encodeURIComponent(city.trim())}`, {
+    headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!response.ok) return null;
+  const rows = await response.json() as { id?: number; nome?: string }[];
+  const hit = rows.find((row) => nicheKey(row.nome ?? '') === key && typeof row.id === 'number');
+  return hit?.id ?? null;
+}
+
+export async function registryPlaces(niche: string, city: string, area: PlaceArea, limit: unknown = 10): Promise<PlaceHit[]> {
+  const cnae = nicheCnae(niche);
+  if (!cnae || !Number.isFinite(area.lat) || !Number.isFinite(area.lng)) return [];
+  const ibge = await cityIbge(city);
+  if (!ibge) return [];
+  const count = leadCount(limit);
+  const response = await fetch(`https://minhareceita.org/?cnae_fiscal=${cnae}&municipio=${ibge}&limit=${Math.min(100, count * 5)}`, {
+    headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!response.ok) return [];
+  return parseRegistry(await response.json(), city, cnae, { lat: area.lat, lng: area.lng }, count);
 }
 
 export async function findPlaces(niche: string, city: string, area: PlaceArea, limit: unknown = 10): Promise<PlaceHit[]> {

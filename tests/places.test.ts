@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { CITY_RINGS } from '../src/lib/cityRings.ts';
-import { fillContacts, leadCount, nicheTag, parseNominatim, parseOverpass, parsePhoton, placeQuery, readHomepageLinks, ringBox, type PlaceHit } from '../src/lib/places.ts';
+import { fillContacts, leadCount, nicheCnae, nicheTag, parseNominatim, parseOverpass, parsePhoton, parseRegistry, placeQuery, readHomepageLinks, ringBox, type PlaceHit } from '../src/lib/places.ts';
 
 test('a niche query asks for the category inside the city', () => {
   const rio = ringBox(CITY_RINGS['rio de janeiro']);
@@ -120,4 +120,44 @@ test('parseNominatim keeps the city from the address', () => {
   assert.equal(places[0].city, 'Rio de Janeiro');
   assert.equal(places[0].lat, -22.9051703);
   assert.equal(places[0].address, 'Rua Gonçalves Dias, 32');
+});
+
+test('parseRegistry keeps the active company phone and drops partners', () => {
+  assert.equal(nicheCnae('Padaria'), '4721102');
+  const places = parseRegistry({
+    data: [
+      {
+        cnae_fiscal: 4721102,
+        descricao_situacao_cadastral: 'ATIVA',
+        nome_fantasia: 'Padaria do Teste',
+        razao_social: 'Padaria do Teste LTDA',
+        descricao_tipo_de_logradouro: 'RUA',
+        logradouro: 'DO TESTE',
+        numero: '10',
+        bairro: 'CENTRO',
+        municipio: 'RIO DE JANEIRO',
+        ddd_telefone_1: '2122242507',
+        email: null,
+        qsa: [{ nome_socio: 'Nome que não pode aparecer', cnpj_cpf_do_socio: '***000000**' }],
+      },
+      {
+        cnae_fiscal: 4721102,
+        descricao_situacao_cadastral: 'BAIXADA',
+        nome_fantasia: 'Padaria Fechada',
+        ddd_telefone_1: '21999999999',
+      },
+      {
+        cnae_fiscal: 4712100,
+        descricao_situacao_cadastral: 'ATIVA',
+        nome_fantasia: 'Mercado Errado',
+        ddd_telefone_1: '2133333333',
+      },
+    ],
+  }, 'Rio de Janeiro', '4721102', { lat: -22.9, lng: -43.2 }, 5);
+  assert.deepEqual(places.map((place) => place.name), ['Padaria do Teste']);
+  assert.equal(places[0].phone, '2122242507');
+  assert.equal(places[0].email, '');
+  assert.equal(places[0].instagram, '');
+  assert.equal(places[0].address, 'RUA DO TESTE 10, CENTRO');
+  assert.equal(JSON.stringify(places).includes('não pode aparecer'), false);
 });

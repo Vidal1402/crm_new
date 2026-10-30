@@ -1,4 +1,4 @@
-import { findPlaces, nicheTag } from './place-search.js';
+import { findPlaces, nicheCnae, nicheTag, registryPlaces } from './place-search.js';
 
 type PlaceArea = {
   lat: number;
@@ -48,8 +48,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   }
   const area: PlaceArea = { lat, lng, south: num(body.south), west: num(body.west), north: num(body.north), east: num(body.east) };
   try {
+    const registered = await registryPlaces(niche, city, area, body.limit);
+    if (registered.length > 0) return res.status(200).json({ places: registered, knownNiche: true, source: 'receita' });
     const places = await findPlaces(niche, city, area, body.limit);
-    return res.status(200).json({ places, knownNiche: nicheTag(niche) !== null });
+    return res.status(200).json({ places, knownNiche: nicheTag(niche) !== null || nicheCnae(niche) !== null, source: 'mapa' });
   } catch {
     return res.status(502).json({ error: 'A busca de empresas não respondeu. Tente de novo.' });
   }

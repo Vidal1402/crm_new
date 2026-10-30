@@ -19,6 +19,47 @@ function nicheKey(niche) {
 function nicheTag(niche) {
   return NICHES[nicheKey(niche)] ?? null;
 }
+var CNAE = {
+  padaria: "4721102",
+  restaurante: "5611201",
+  farmacia: "4771701",
+  dentista: "8630504",
+  academia: "9313100",
+  mercado: "4712100",
+  "pet shop": "4789004",
+  oficina: "4520001",
+  salao: "9602501"
+};
+function nicheCnae(niche) {
+  return CNAE[nicheKey(niche)] ?? null;
+}
+function parseRegistry(data, fallbackCity, cnae, point, limit = 10) {
+  const rows = data?.data;
+  if (!Array.isArray(rows)) return [];
+  const hits = [];
+  for (const item of rows) {
+    const row = item;
+    if (String(row.cnae_fiscal ?? "") !== cnae) continue;
+    if (text(row.descricao_situacao_cadastral) !== "ATIVA") continue;
+    const name = text(row.nome_fantasia) || text(row.razao_social);
+    if (!name) continue;
+    const street = [text(row.descricao_tipo_de_logradouro), text(row.logradouro), text(row.numero)].filter(Boolean).join(" ");
+    hits.push({
+      name,
+      city: text(row.municipio) || fallbackCity.trim(),
+      address: [street, text(row.bairro)].filter(Boolean).join(", "),
+      phone: text(row.ddd_telefone_1).replace(/\D/g, ""),
+      email: emailOf(text(row.email)),
+      instagram: "",
+      linkedin: "",
+      website: "",
+      lat: point.lat,
+      lng: point.lng
+    });
+  }
+  hits.sort((a, b) => Number(Boolean(b.phone)) - Number(Boolean(a.phone)) || Number(Boolean(b.email)) - Number(Boolean(a.email)));
+  return hits.slice(0, leadCount(limit));
+}
 function areaClause(area) {
   if (!Number.isFinite(area.lat) || !Number.isFinite(area.lng)) return null;
   if (area.lat < -90 || area.lat > 90 || area.lng < -180 || area.lng > 180) return null;
@@ -331,6 +372,38 @@ function pickList(overpass, listed, named) {
   if (named.length >= 2) return named;
   return overpass.length ? overpass : listed.length ? listed : named;
 }
+var CITY_IBGE = {
+  "rio de janeiro": 3304557,
+  vitoria: 3205309,
+  "vila velha": 3205200,
+  niteroi: 3303302,
+  "sao paulo": 3550308
+};
+async function cityIbge(city) {
+  const key = nicheKey(city);
+  if (CITY_IBGE[key]) return CITY_IBGE[key];
+  const response = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/municipios?nome=${encodeURIComponent(city.trim())}`, {
+    headers: { Accept: "application/json", "User-Agent": USER_AGENT },
+    signal: AbortSignal.timeout(5e3)
+  });
+  if (!response.ok) return null;
+  const rows = await response.json();
+  const hit = rows.find((row) => nicheKey(row.nome ?? "") === key && typeof row.id === "number");
+  return hit?.id ?? null;
+}
+async function registryPlaces(niche, city, area, limit = 10) {
+  const cnae = nicheCnae(niche);
+  if (!cnae || !Number.isFinite(area.lat) || !Number.isFinite(area.lng)) return [];
+  const ibge = await cityIbge(city);
+  if (!ibge) return [];
+  const count = leadCount(limit);
+  const response = await fetch(`https://minhareceita.org/?cnae_fiscal=${cnae}&municipio=${ibge}&limit=${Math.min(100, count * 5)}`, {
+    headers: { Accept: "application/json", "User-Agent": USER_AGENT },
+    signal: AbortSignal.timeout(8e3)
+  });
+  if (!response.ok) return [];
+  return parseRegistry(await response.json(), city, cnae, { lat: area.lat, lng: area.lng }, count);
+}
 async function findPlaces(niche, city, area, limit = 10) {
   const count = leadCount(limit);
   const query = placeQuery(niche, area, count);
@@ -366,5 +439,6 @@ async function findPlaces(niche, city, area, limit = 10) {
 }
 export {
   findPlaces,
-  nicheTag
+  nicheTag,
+  registryPlaces
 };

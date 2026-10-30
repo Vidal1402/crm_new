@@ -24,6 +24,7 @@ export default function ProspeccaoPage() {
   const [phones, setPhones] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState<Record<string, boolean>>({});
   const [searching, setSearching] = useState(false);
+  const [searchSource, setSearchSource] = useState('');
   const [searchError, setSearchError] = useState('');
   const [extraRings, setExtraRings] = useState<Record<string, [number, number][]>>({});
   const triedRings = useRef(new Set<string>());
@@ -71,7 +72,7 @@ export default function ProspeccaoPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ niche: wanted, city, limit: leadCount(count), lat: point.lat, lng: point.lng, ...(box ?? {}) }),
       });
-      const data = await response.json() as { places?: PlaceHit[]; knownNiche?: boolean; error?: string };
+      const data = await response.json() as { places?: PlaceHit[]; knownNiche?: boolean; source?: string; error?: string };
       if (!response.ok) {
         setSearchError(data.error || 'A busca de empresas não respondeu. Tente de novo.');
         setHits([]);
@@ -80,6 +81,7 @@ export default function ProspeccaoPage() {
       const places = data.places ?? [];
       setHits(places);
       setPhones(Object.fromEntries(places.map((hit) => [hitKey(hit), hit.phone])));
+      setSearchSource(data.source === 'receita' ? 'Receita Federal' : 'OpenStreetMap');
       if (places.length === 0) {
         setSearchError(data.knownNiche
           ? 'Nenhuma empresa desse nicho nessa cidade.'
@@ -150,7 +152,7 @@ export default function ProspeccaoPage() {
           {lists.map((name) => <option key={name}>{name}</option>)}
         </select>
       </div>
-      <Panel title="Buscar por nicho" action={<span className="text-[11px] text-[#9CA3AF]">OpenStreetMap</span>}>
+      <Panel title="Buscar por nicho" action={<span className="text-[11px] text-[#9CA3AF]">{searchSource || 'Receita Federal'}</span>}>
         <form
           className="flex flex-wrap gap-2"
           onSubmit={(event) => {
@@ -165,6 +167,7 @@ export default function ProspeccaoPage() {
             {searching ? 'Buscando' : 'Buscar'}
           </button>
         </form>
+        <p className="mt-2 text-[12px] text-[#6B7280]">Telefone e e-mail vêm do cadastro público da empresa. Instagram e LinkedIn não estão nessa base.</p>
         {searchError ? <p className="mt-3 text-sm text-[#DC2626]">{searchError}</p> : null}
         <ul className="mt-3 divide-y divide-[#F3F4F6] text-sm">
           {hits.map((hit) => {
