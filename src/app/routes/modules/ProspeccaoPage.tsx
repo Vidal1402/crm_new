@@ -2,9 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search } from 'lucide-react';
 import { ModuleHeader, Panel, fieldClass } from '@/components/modules/ModuleChrome';
 import { TerritoryHeatmap, type HeatZone, heatZoneLabel } from '@/components/modules/TerritoryHeatmap';
-import { knownCity, cityKey, sameCity } from '@/lib/geocode';
+import { knownCity, cityKey, sameCity, geocodeCity } from '@/lib/geocode';
 import { cityRing, loadCityRing } from '@/lib/cityShape';
 import { HEAT_COLORS, contactStatusColor, hottestColor } from '@/lib/heatStatus';
+import { ringBox, type PlaceHit } from '@/lib/places';
+import { normalizePhone } from '@/lib/phone';
 import { useCrmFeed } from '@/hooks/useCrmFeed';
 import { cn } from '@/lib/utils';
 
@@ -15,6 +17,13 @@ export default function ProspeccaoPage() {
   const [list, setList] = useState('Todas');
   const [zone, setZone] = useState<string | null>(null);
   const [newList, setNewList] = useState('');
+  const [company, setCompany] = useState('');
+  const [companyCity, setCompanyCity] = useState('Rio de Janeiro');
+  const [hits, setHits] = useState<PlaceHit[]>([]);
+  const [phones, setPhones] = useState<Record<string, string>>({});
+  const [saved, setSaved] = useState<Record<string, boolean>>({});
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
   const [extraRings, setExtraRings] = useState<Record<string, [number, number][]>>({});
   const triedRings = useRef(new Set<string>());
   const lists = [...new Set(feed.contacts.map((item) => item.list).filter(Boolean))];
@@ -35,6 +44,49 @@ export default function ProspeccaoPage() {
       cancelled = true;
     };
   }, [cityNames]);
+  useEffect(() => {
+    if (zone) setCompanyCity(zone);
+  }, [zone]);
+  const hitKey = (hit: PlaceHit) => `${hit.name}|${hit.lat.toFixed(4)}|${hit.lng.toFixed(4)}`;
+  async function searchCompany() {
+    const name = company.trim();
+    const city = companyCity.trim();
+    if (name.length < 3 || !city) {
+      setSearchError('Digite a empresa e a cidade.');
+      return;
+    }
+    setSearching(true);
+    setSearchError('');
+    try {
+      const point = knownCity(city) ?? await geocodeCity(city);
+      if (!point) {
+        setSearchError('Não achei essa cidade.');
+        setHits([]);
+        return;
+      }
+      const box = ringBox(cityRing(city) ?? []);
+      const response = await fetch('/api/places', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, city, lat: point.lat, lng: point.lng, ...(box ?? {}) }),
+      });
+      const data = await response.json() as { places?: PlaceHit[]; error?: string };
+      if (!response.ok) {
+        setSearchError(data.error || 'A busca de empresas não respondeu. Tente de novo.');
+        setHits([]);
+        return;
+      }
+      const places = data.places ?? [];
+      setHits(places);
+      setPhones(Object.fromEntries(places.map((hit) => [hitKey(hit), hit.phone])));
+      if (places.length === 0) setSearchError('Nenhuma empresa com esse nome nessa cidade.');
+    } catch {
+      setSearchError('A busca de empresas não respondeu. Tente de novo.');
+      setHits([]);
+    } finally {
+      setSearching(false);
+    }
+  }
   const zones = useMemo<HeatZone[]>(() => {
     const counts = new Map<string, { label: string; leads: number }>();
     for (const contact of feed.contacts) {
@@ -93,6 +145,72 @@ export default function ProspeccaoPage() {
           {lists.map((name) => <option key={name}>{name}</option>)}
         </select>
       </div>
+      <Panel title="Buscar empresa" action={<span className="text-[11px] text-[#9CA3AF]">OpenStreetMap</span>}>
+        <form
+          className="flex flex-wrap gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void searchCompany();
+          }}
+        >
+          <input value={company} onChange={(event) => setCompany(event.target.value)} placeholder="Nome da empresa" className={cn(fieldClass, 'min-w-[220px] flex-1')} />
+          <input value={companyCity} onChange={(event) => setCompanyCity(event.target.value)} placeholder="Cidade" className={cn(fieldClass, 'w-48')} />
+          <button type="submit" disabled={searching} className="h-10 rounded-lg bg-[#111827] px-3 text-sm font-medium text-white disabled:opacity-60">
+            {searching ? 'Buscando' : 'Buscar'}
+          </button>
+        </form>
+        {searchError ? <p className="mt-3 text-sm text-[#DC2626]">{searchError}</p> : null}
+        <ul className="mt-3 divide-y divide-[#F3F4F6] text-sm">
+          {hits.map((hit) => {
+            const key = hitKey(hit);
+            const draft = phones[key] ?? '';
+            const ready = normalizePhone(draft).ok;
+            return (
+              <li key={key} className="flex flex-wrap items-center gap-3 py-3">
+                <div className="min-w-[180px] flex-1">
+                  <div className="font-medium text-[#111827]">{hit.name}</div>
+                  <div className="text-[12px] text-[#6B7280]">{[hit.address, hit.city].filter(Boolean).join(' · ') || hit.city}</div>
+                </div>
+                <input
+                  value={draft}
+                  onChange={(event) => setPhones((current) => ({ ...current, [key]: event.target.value }))}
+                  placeholder="Telefone para gravar"
+                  className={cn(fieldClass, 'w-48')}
+                />
+                <button
+                  type="button"
+                  disabled={!ready || saved[key] !== undefined}
+                  onClick={() => {
+                    const parsed = normalizePhone(draft);
+                    if (!parsed.ok) return;
+                    setSaved((current) => ({ ...current, [key]: false }));
+                    void feed.addContact({
+                      name: hit.name,
+                      phone: parsed.e164,
+                      city: hit.city || companyCity.trim(),
+                      address: hit.address,
+                      lat: hit.lat,
+                      lng: hit.lng,
+                      list: list === 'Todas' ? newList.trim() : list,
+                    }).then((ok) => {
+                      setSaved((current) => {
+                        const next = { ...current };
+                        if (ok) next[key] = true;
+                        else delete next[key];
+                        return next;
+                      });
+                    });
+                  }}
+                  className="h-10 rounded-lg bg-[#111827] px-3 text-sm font-medium text-white disabled:opacity-60"
+                >
+                  {saved[key] === true ? 'Gravado' : saved[key] === false ? 'Gravando' : 'Gravar'}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        {hits.length > 0 ? <p className="text-[12px] text-[#6B7280]">Sem telefone no mapa, digite um número válido para gravar. O contato entra na cidade e no mapa.</p> : null}
+      </Panel>
       <Panel
         title="Mapa"
         action={zone ? <button type="button" onClick={() => setZone(null)} className="text-xs text-[#6B7280]">Limpar {heatZoneLabel(zone)}</button> : <span className="text-[11px] text-[#9CA3AF]">Cidades dos contatos</span>}

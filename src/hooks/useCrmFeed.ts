@@ -205,9 +205,11 @@ export function useCrmFeed() {
     await reload();
   }, [reload]);
 
-  const addContact = useCallback(async (input: { name: string; phone: string; email?: string; city?: string; address?: string; list?: string }) => {
+  const addContact = useCallback(async (input: { name: string; phone: string; email?: string; city?: string; address?: string; list?: string; lat?: number; lng?: number }) => {
     const supabase = getSupabase();
-    const point = input.city ? await geocodeCity(input.city) : null;
+    const point = Number.isFinite(input.lat) && Number.isFinite(input.lng)
+      ? { lat: input.lat as number, lng: input.lng as number }
+      : input.city ? await geocodeCity(input.city) : null;
     const payload = await withTenant({
       name: input.name,
       phone: input.phone,
@@ -222,7 +224,7 @@ export function useCrmFeed() {
     const { data, error: err } = await supabase.from('contacts').insert(payload).select('id').single();
     if (err || !data) {
       setError(err?.message ?? 'Não foi possível gravar o contato.');
-      return;
+      return false;
     }
     if (input.list) {
       const tagPayload = await withTenant({ name: input.list, color: '#111827' });
@@ -232,6 +234,7 @@ export function useCrmFeed() {
       }
     }
     await reload();
+    return true;
   }, [reload]);
 
   const ensurePipeline = useCallback(async (name: string) => {
