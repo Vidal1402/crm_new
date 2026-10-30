@@ -43,13 +43,13 @@ function heatPoints(zones: HeatZone[]) {
   const features: GeoJSON.Feature[] = [];
   zones.forEach((z, zi) => {
     const rng = mulberry32(zi * 9173 + 11);
-    const n = 50 + Math.round(z.v * 280);
+    const n = 120 + Math.round(z.v * 180);
     for (let i = 0; i < n; i++) {
       const ang = rng() * Math.PI * 2;
-      const rad = rng() ** 0.62 * (0.018 - z.v * 0.008);
+      const rad = rng() ** 0.45 * 0.006;
       features.push({
         type: 'Feature',
-        properties: { weight: 0.35 + z.v * 0.85, city: z.city },
+        properties: { weight: 0.85 + z.v * 0.9, city: z.city },
         geometry: { type: 'Point', coordinates: [z.lng + Math.cos(ang) * rad, z.lat + Math.sin(ang) * rad * 0.82] },
       });
     }
@@ -93,19 +93,19 @@ function addHeat(map: MapType, zones: HeatZone[]) {
     maxzoom: 16,
     paint: {
       'heatmap-weight': ['get', 'weight'],
-      'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 9, 0.8, 13, 2.6],
-      'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 9, 20, 14, 48],
-      'heatmap-opacity': 0.92,
+      'heatmap-intensity': 1.8,
+      'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 8, 28, 12, 64],
+      'heatmap-opacity': 0.95,
       'heatmap-color': [
         'interpolate',
         ['linear'],
         ['heatmap-density'],
         0, 'rgba(0,0,0,0)',
-        0.12, '#14532D',
-        0.28, '#16A34A',
-        0.45, '#4ADE80',
-        0.62, '#FACC15',
-        0.78, '#F97316',
+        0.04, '#14532D',
+        0.15, '#16A34A',
+        0.35, '#4ADE80',
+        0.55, '#FACC15',
+        0.75, '#F97316',
         1, '#DC2626',
       ],
     },
@@ -129,18 +129,17 @@ function addHeat(map: MapType, zones: HeatZone[]) {
   });
 }
 
-function zoneBounds(zones: HeatZone[]): [[number, number], [number, number]] {
-  let west = Infinity;
-  let south = Infinity;
-  let east = -Infinity;
-  let north = -Infinity;
-  for (const zone of zones) {
-    west = Math.min(west, zone.lng);
-    east = Math.max(east, zone.lng);
-    south = Math.min(south, zone.lat);
-    north = Math.max(north, zone.lat);
+const RIO: [number, number] = [-43.1729, -22.9068];
+
+function paintHeat(map: MapType, zones: HeatZone[]) {
+  const heat = map.getSource('heat') as GeoJSONSource | undefined;
+  const labelSource = map.getSource('labels') as GeoJSONSource | undefined;
+  if (!heat || !labelSource) {
+    addHeat(map, zones);
+    return;
   }
-  return [[west, south], [east, north]];
+  heat.setData(heatPoints(zones));
+  labelSource.setData(labels(zones));
 }
 
 function createMap(el: HTMLDivElement, opts: { center: [number, number]; zoom: number; pitch: number; bearing: number }, zones: HeatZone[]) {
@@ -159,6 +158,10 @@ function createMap(el: HTMLDivElement, opts: { center: [number, number]; zoom: n
     addHeat(map, zones);
   });
   return map;
+}
+
+function focusRio(map: MapType, zoom: number, pitch: number) {
+  map.easeTo({ center: RIO, zoom, pitch, bearing: 0, duration: 700 });
 }
 
 export function TerritoryHeatmap({
@@ -188,8 +191,8 @@ export function TerritoryHeatmap({
     const b = streetEl.current;
     if (!a || !b) return;
 
-    const overview = createMap(a, { center: [-51.4, -14.2], zoom: 3.6, pitch: 0, bearing: 0 }, zonesRef.current);
-    const street = createMap(b, { center: [-51.4, -14.2], zoom: 3.6, pitch: 0, bearing: 0 }, zonesRef.current);
+    const overview = createMap(a, { center: RIO, zoom: 11, pitch: 20, bearing: 0 }, zonesRef.current);
+    const street = createMap(b, { center: RIO, zoom: 14, pitch: 50, bearing: 18 }, zonesRef.current);
     overviewRef.current = overview;
     streetRef.current = street;
 
@@ -218,11 +221,11 @@ export function TerritoryHeatmap({
   }, []);
 
   useEffect(() => {
-    const data = heatPoints(zones);
-    const labelData = labels(zones);
     for (const map of [overviewRef.current, streetRef.current]) {
-      (map?.getSource('heat') as GeoJSONSource | undefined)?.setData(data);
-      (map?.getSource('labels') as GeoJSONSource | undefined)?.setData(labelData);
+      if (!map) continue;
+      const draw = () => paintHeat(map, zones);
+      if (map.isStyleLoaded()) draw();
+      else map.once('load', draw);
     }
   }, [zones]);
 
@@ -230,16 +233,15 @@ export function TerritoryHeatmap({
     const overview = overviewRef.current;
     const street = streetRef.current;
     if (!overview || !street) return;
-    const z = zones.find((item) => item.city === selected);
+    const rio = zones.find((item) => /rio de janeiro/i.test(item.city));
+    const z = zones.find((item) => item.city === selected) ?? rio;
     if (z) {
-      overview.easeTo({ center: [z.lng, z.lat], zoom: 11, pitch: 30, duration: 700 });
-      street.easeTo({ center: [z.lng, z.lat], zoom: 15, pitch: 55, bearing: 24, duration: 700 });
+      overview.easeTo({ center: [z.lng, z.lat], zoom: 12, pitch: 25, duration: 700 });
+      street.easeTo({ center: [z.lng, z.lat], zoom: 15, pitch: 55, bearing: 18, duration: 700 });
       return;
     }
-    if (zones.length === 0) return;
-    overview.fitBounds(zoneBounds(zones), { padding: 48, duration: 700, maxZoom: 11 });
-    const first = zones[0];
-    street.easeTo({ center: [first.lng, first.lat], zoom: 14, pitch: 50, duration: 700 });
+    focusRio(overview, 11, 20);
+    focusRio(street, 14, 50);
   }, [selected, zones]);
 
   useEffect(() => {
