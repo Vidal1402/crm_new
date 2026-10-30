@@ -3,6 +3,7 @@ import { Search } from 'lucide-react';
 import { ModuleHeader, Panel, fieldClass } from '@/components/modules/ModuleChrome';
 import { TerritoryHeatmap, type HeatZone, heatZoneLabel } from '@/components/modules/TerritoryHeatmap';
 import { knownCity } from '@/lib/geocode';
+import { useCrmFeed } from '@/hooks/useCrmFeed';
 import { cn } from '@/lib/utils';
 
 export default function ProspeccaoPage() {
