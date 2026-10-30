@@ -25,6 +25,7 @@ export function meteoPoint(data: {
 
 const KNOWN: Record<string, { lat: number; lng: number }> = {
   'rio de janeiro': { lat: -22.9068, lng: -43.1729 },
+  rio: { lat: -22.9068, lng: -43.1729 },
   vitoria: { lat: -20.3194, lng: -40.3378 },
   'vila velha': { lat: -20.3297, lng: -40.2925 },
   niteroi: { lat: -22.8832, lng: -43.1034 },
@@ -49,6 +50,10 @@ export async function geocodeCity(city: string): Promise<{ lat: number; lng: num
   if (!key) return null;
   if (cache.has(key)) return cache.get(key) ?? null;
   const known = knownCity(city);
+  if (known) {
+    cache.set(key, known);
+    return known;
+  }
   try {
     const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city.trim())}&count=5&language=pt&format=json`;
     const response = await fetch(url);
@@ -60,11 +65,7 @@ export async function geocodeCity(city: string): Promise<{ lat: number; lng: num
       }
     }
   } catch {
-    // The known city still places the contact when the request fails.
-  }
-  if (known) {
-    cache.set(key, known);
-    return known;
+    return null;
   }
   return null;
 }

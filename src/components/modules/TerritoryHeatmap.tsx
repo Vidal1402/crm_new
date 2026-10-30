@@ -86,7 +86,7 @@ const stains = new WeakMap<MapType, Marker[]>();
 
 function heatRgb(v: number): [number, number, number] {
   const ramp: Array<[number, [number, number, number]]> = [
-    [0, [20, 83, 45]],
+    [0, [34, 197, 94]],
     [0.35, [22, 163, 74]],
     [0.55, [250, 204, 21]],
     [0.75, [249, 115, 22]],
@@ -108,10 +108,12 @@ function heatRgb(v: number): [number, number, number] {
 function stain(v: number) {
   const [r, g, b] = heatRgb(v);
   const el = document.createElement('div');
-  el.style.width = '220px';
-  el.style.height = '220px';
+  el.style.width = '280px';
+  el.style.height = '280px';
+  el.style.borderRadius = '999px';
   el.style.pointerEvents = 'none';
-  el.style.background = `radial-gradient(circle, rgba(${r},${g},${b},0.72) 0%, rgba(${r},${g},${b},0.28) 42%, rgba(${r},${g},${b},0) 74%)`;
+  el.style.background = `radial-gradient(circle, rgba(${r},${g},${b},0.92) 0%, rgba(${r},${g},${b},0.6) 36%, rgba(${r},${g},${b},0) 70%)`;
+  el.style.boxShadow = `0 0 24px rgba(${r},${g},${b},0.45)`;
   return el;
 }
 
@@ -183,7 +185,7 @@ function paintHeat(map: MapType, zones: HeatZone[]) {
   labelSource.setData(labels(zones));
 }
 
-function createMap(el: HTMLDivElement, opts: { center: [number, number]; zoom: number; pitch: number; bearing: number }, zones: HeatZone[]) {
+function createMap(el: HTMLDivElement, opts: { center: [number, number]; zoom: number; pitch: number; bearing: number }, getZones: () => HeatZone[]) {
   const map = new MapLibreMap({
     container: el,
     style: STYLE,
@@ -194,10 +196,10 @@ function createMap(el: HTMLDivElement, opts: { center: [number, number]; zoom: n
     attributionControl: false,
   });
   map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
-  syncStains(map, zones);
+  syncStains(map, getZones());
   map.on('load', () => {
     map.resize();
-    paintHeat(map, zones);
+    paintHeat(map, getZones());
   });
   return map;
 }
@@ -233,8 +235,8 @@ export function TerritoryHeatmap({
     const b = streetEl.current;
     if (!a || !b) return;
 
-    const overview = createMap(a, { center: RIO, zoom: 11, pitch: 20, bearing: 0 }, zonesRef.current);
-    const street = createMap(b, { center: RIO, zoom: 14, pitch: 50, bearing: 18 }, zonesRef.current);
+    const overview = createMap(a, { center: RIO, zoom: 11, pitch: 20, bearing: 0 }, () => zonesRef.current);
+    const street = createMap(b, { center: RIO, zoom: 14, pitch: 50, bearing: 18 }, () => zonesRef.current);
     overviewRef.current = overview;
     streetRef.current = street;
 

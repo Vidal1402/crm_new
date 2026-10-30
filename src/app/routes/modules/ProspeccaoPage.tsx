@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
 import { ModuleHeader, Panel, fieldClass } from '@/components/modules/ModuleChrome';
 import { TerritoryHeatmap, type HeatZone, heatZoneLabel } from '@/components/modules/TerritoryHeatmap';
-import { useCrmFeed } from '@/hooks/useCrmFeed';
+import { knownCity } from '@/lib/geocode';
 import { cn } from '@/lib/utils';
 
 export default function ProspeccaoPage() {
@@ -21,8 +21,11 @@ export default function ProspeccaoPage() {
     }
     return [...counts.entries()].flatMap(([city, leads]) => {
       const sample = feed.contacts.find((item) => item.city === city && item.lat !== null && item.lng !== null);
-      if (!sample || sample.lat === null || sample.lng === null) return [];
-      return [{ city, label: city, lng: sample.lng, lat: sample.lat, v: Math.min(1, leads / 20), leads }];
+      const point = sample && sample.lat !== null && sample.lng !== null
+        ? { lat: sample.lat, lng: sample.lng }
+        : knownCity(city);
+      if (!point) return [];
+      return [{ city, label: city, lng: point.lng, lat: point.lat, v: Math.min(1, leads / 20), leads }];
     });
   }, [feed.contacts]);
   const filtered = feed.contacts.filter((item) => {
