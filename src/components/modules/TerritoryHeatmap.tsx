@@ -13,7 +13,19 @@ export interface HeatZone {
 
 const CARTO_KEY = import.meta.env.VITE_CARTO_API_KEY ?? '';
 const STYLE = CARTO_KEY
-  ? `https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json?key=${CARTO_KEY}`
+  ? {
+      version: 8 as const,
+      glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+      sources: {
+        carto: {
+          type: 'raster' as const,
+          tiles: [`https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=${CARTO_KEY}`],
+          tileSize: 256,
+          attribution: '© OpenStreetMap © CARTO',
+        },
+      },
+      layers: [{ id: 'carto', type: 'raster' as const, source: 'carto' }],
+    }
   : 'https://tiles.openfreemap.org/styles/liberty';
 
 function mulberry32(seed: number) {
@@ -266,14 +278,15 @@ export function TerritoryHeatmap({
           </ul>
         ) : null}
       </div>
+      <style>{'.prospect-map.maplibregl-map{height:400px!important;width:100%!important}.prospect-map .maplibregl-canvas{max-width:none!important;width:100%!important;height:100%!important}'}</style>
       <div className="grid overflow-hidden rounded-xl border border-[#E5E7EB] lg:grid-cols-2">
         <div>
           <div className="border-b border-[#F3F4F6] px-3 py-1.5 text-[11px] text-[#6B7280]">Mapa de calor</div>
-          <div ref={overviewEl} className="w-full bg-[#E8EEE9]" style={{ height: 400 }} />
+          <div ref={overviewEl} className="prospect-map w-full bg-[#E8EEE9]" style={{ height: 400 }} />
         </div>
         <div className="border-t border-[#E5E7EB] lg:border-l lg:border-t-0">
           <div className="border-b border-[#F3F4F6] px-3 py-1.5 text-[11px] text-[#6B7280]">Vista da rua (3D)</div>
-          <div ref={streetEl} className="w-full bg-[#E8EEE9]" style={{ height: 400 }} />
+          <div ref={streetEl} className="prospect-map w-full bg-[#E8EEE9]" style={{ height: 400 }} />
         </div>
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#6B7280]">
