@@ -108,10 +108,10 @@ function heatRgb(v: number): [number, number, number] {
 function stain(v: number) {
   const [r, g, b] = heatRgb(v);
   const el = document.createElement('div');
-  el.style.width = '180px';
-  el.style.height = '180px';
+  el.style.width = '220px';
+  el.style.height = '220px';
   el.style.pointerEvents = 'none';
-  el.style.background = `radial-gradient(circle, rgba(${r},${g},${b},0.45) 0%, rgba(${r},${g},${b},0.16) 46%, rgba(${r},${g},${b},0) 72%)`;
+  el.style.background = `radial-gradient(circle, rgba(${r},${g},${b},0.72) 0%, rgba(${r},${g},${b},0.28) 42%, rgba(${r},${g},${b},0) 74%)`;
   return el;
 }
 

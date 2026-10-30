@@ -111,6 +111,11 @@ export function mapDeal(row: DealRow): FeedDeal {
   };
 }
 
+function coord(value: unknown): number | null {
+  const n = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : NaN;
+  return Number.isFinite(n) ? n : null;
+}
+
 export function mapContact(row: {
   id: string;
   name: string | null;
@@ -131,8 +136,8 @@ export function mapContact(row: {
     source: row.source ?? null,
     city: typeof fields.city === 'string' ? fields.city : '',
     address: typeof fields.address === 'string' ? fields.address : '',
-    lat: typeof fields.lat === 'number' ? fields.lat : null,
-    lng: typeof fields.lng === 'number' ? fields.lng : null,
+    lat: coord(fields.lat),
+    lng: coord(fields.lng),
     list: row.tags?.[0]?.name ?? '',
   };
 }

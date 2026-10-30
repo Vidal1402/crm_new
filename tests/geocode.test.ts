@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { meteoPoint, photonPoint } from '../src/lib/geocode.ts';
+import { knownCity, meteoPoint, photonPoint } from '../src/lib/geocode.ts';
 
 test('photonPoint reads the first longitude and latitude', () => {
   assert.deepEqual(
@@ -22,4 +22,10 @@ test('meteoPoint prefers the Brazilian city', () => {
     { lat: -20.31944, lng: -40.33778 },
   );
   assert.equal(meteoPoint({ results: [] }), null);
+});
+
+test('knownCity places Rio and Vitória without a request', () => {
+  assert.deepEqual(knownCity('Rio de Janeiro'), { lat: -22.9068, lng: -43.1729 });
+  assert.deepEqual(knownCity('Vitória'), { lat: -20.3194, lng: -40.3378 });
+  assert.equal(knownCity('Cidade Inventada'), null);
 });
