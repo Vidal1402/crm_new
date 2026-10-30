@@ -25,7 +25,6 @@ export function meteoPoint(data: {
 
 const KNOWN: Record<string, { lat: number; lng: number }> = {
   'rio de janeiro': { lat: -22.9068, lng: -43.1729 },
-  rio: { lat: -22.9068, lng: -43.1729 },
   vitoria: { lat: -20.3194, lng: -40.3378 },
   'vila velha': { lat: -20.3297, lng: -40.2925 },
   niteroi: { lat: -22.8832, lng: -43.1034 },
@@ -36,13 +35,12 @@ export function cityKey(city: string): string {
   return city.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+export function sameCity(a: string, b: string): boolean {
+  return cityKey(a) === cityKey(b);
+}
+
 export function knownCity(city: string): { lat: number; lng: number } | null {
-  const pieces = city.split(/[,/|]| - /).map((part) => cityKey(part)).filter(Boolean);
-  for (const piece of [cityKey(city), ...pieces]) {
-    const hit = KNOWN[piece];
-    if (hit) return hit;
-  }
-  return null;
+  return KNOWN[cityKey(city)] ?? null;
 }
 
 export async function geocodeCity(city: string): Promise<{ lat: number; lng: number } | null> {

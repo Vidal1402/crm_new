@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search } from 'lucide-react';
 import { ModuleHeader, Panel, fieldClass } from '@/components/modules/ModuleChrome';
 import { TerritoryHeatmap, type HeatZone, heatZoneLabel } from '@/components/modules/TerritoryHeatmap';
-import { knownCity } from '@/lib/geocode';
+import { knownCity, cityKey, sameCity } from '@/lib/geocode';
 import { cityRing, loadCityRing } from '@/lib/cityShape';
 import { HEAT_COLORS, contactStatusColor, hottestColor } from '@/lib/heatStatus';
 import { useCrmFeed } from '@/hooks/useCrmFeed';
@@ -28,7 +28,7 @@ export default function ProspeccaoPage() {
         triedRings.current.add(city);
         const ring = await loadCityRing(city);
         if (cancelled || !ring) continue;
-        setExtraRings((current) => ({ ...current, [city]: ring }));
+        setExtraRings((current) => ({ ...current, [cityKey(city)]: ring }));
       }
     })();
     return () => {
@@ -36,29 +36,33 @@ export default function ProspeccaoPage() {
     };
   }, [cityNames]);
   const zones = useMemo<HeatZone[]>(() => {
-    const counts = new Map<string, number>();
+    const counts = new Map<string, { label: string; leads: number }>();
     for (const contact of feed.contacts) {
-      if (!contact.city) continue;
-      counts.set(contact.city, (counts.get(contact.city) ?? 0) + 1);
+      const key = cityKey(contact.city);
+      if (!key) continue;
+      const row = counts.get(key) ?? { label: contact.city.trim(), leads: 0 };
+      row.leads += 1;
+      counts.set(key, row);
     }
-    return [...counts.entries()].flatMap(([city, leads]) => {
-      const sample = feed.contacts.find((item) => item.city === city && item.lat !== null && item.lng !== null);
+    return [...counts.entries()].flatMap(([key, bucket]) => {
+      const city = bucket.label;
+      const sample = feed.contacts.find((item) => cityKey(item.city) === key && item.lat !== null && item.lng !== null);
       const point = sample && sample.lat !== null && sample.lng !== null
         ? { lat: sample.lat, lng: sample.lng }
-        : knownCity(city);
+        : knownCity(key);
       if (!point) return [];
       const colors = feed.deals
-        .filter((deal) => feed.contacts.some((item) => item.id === deal.contactId && item.city === city))
+        .filter((deal) => feed.contacts.some((item) => item.id === deal.contactId && cityKey(item.city) === key))
         .map((deal) => contactStatusColor(deal.stageName, deal.status));
       return [{
         city,
         label: city,
         lng: point.lng,
         lat: point.lat,
-        v: Math.min(1, leads / 20),
-        leads,
+        v: Math.min(1, bucket.leads / 20),
+        leads: bucket.leads,
         color: colors.length > 0 ? hottestColor(colors) : HEAT_COLORS.green,
-        ring: cityRing(city) ?? extraRings[city],
+        ring: cityRing(key) ?? extraRings[key],
       }];
     });
   }, [feed.contacts, feed.deals, extraRings]);
@@ -68,7 +72,7 @@ export default function ProspeccaoPage() {
     return hay.includes(q.toLowerCase())
       && (funnel === 'Todos' || pipelineNames.includes(funnel))
       && (list === 'Todas' || item.list === list)
-      && (!zone || item.city === zone);
+      && (!zone || sameCity(item.city, zone));
   });
 
   return (

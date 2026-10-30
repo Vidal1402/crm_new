@@ -33,8 +33,8 @@ export async function loadCityRing(city: string): Promise<[number, number][] | n
       fetched.set(key, null);
       return null;
     }
-    const rows = await response.json() as { addresstype?: string; geojson?: { type?: string; coordinates?: number[][][] | number[][][][] } }[];
-    const hit = rows.find((row) => row.addresstype === 'city' && row.geojson);
+    const rows = await response.json() as { name?: string; addresstype?: string; geojson?: { type?: string; coordinates?: number[][][] | number[][][][] } }[];
+    const hit = rows.find((row) => row.addresstype === 'city' && row.geojson && cityKey(row.name ?? '') === key);
     const geometry = hit?.geojson;
     const candidates = geometry?.type === 'Polygon'
       ? (geometry.coordinates as number[][][])

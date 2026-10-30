@@ -28,4 +28,7 @@ test('knownCity places Rio and Vitória without a request', () => {
   assert.deepEqual(knownCity('Rio de Janeiro'), { lat: -22.9068, lng: -43.1729 });
   assert.deepEqual(knownCity('Vitória'), { lat: -20.3194, lng: -40.3378 });
   assert.equal(knownCity('Cidade Inventada'), null);
+  assert.equal(knownCity('Recreio'), null);
+  assert.equal(knownCity('Recreio, Rio de Janeiro'), null);
+  assert.equal(knownCity('Rio'), null);
 });
