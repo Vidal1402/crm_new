@@ -33,6 +33,7 @@ export default defineConfig(({ mode }) => {
           : 'espelho';
   const googleMapsKey =
     process.env.VITE_GOOGLE_MAPS_API_KEY ?? fileEnv.VITE_GOOGLE_MAPS_API_KEY ?? '';
+  const cartoKey = process.env.VITE_CARTO_API_KEY ?? fileEnv.VITE_CARTO_API_KEY ?? '';
 
   return {
     plugins: [react(), tailwindcss()],
@@ -41,6 +42,7 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(supabaseAnonKey),
       'import.meta.env.VITE_APP_CHANNEL': JSON.stringify(appChannel),
       'import.meta.env.VITE_GOOGLE_MAPS_API_KEY': JSON.stringify(googleMapsKey),
+      'import.meta.env.VITE_CARTO_API_KEY': JSON.stringify(cartoKey),
     },
     resolve: {
       alias: {

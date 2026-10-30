@@ -11,7 +11,10 @@ export interface HeatZone {
   leads: number;
 }
 
-const STYLE = 'https://tiles.openfreemap.org/styles/liberty';
+const CARTO_KEY = import.meta.env.VITE_CARTO_API_KEY ?? '';
+const STYLE = CARTO_KEY
+  ? `https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json?key=${CARTO_KEY}`
+  : 'https://tiles.openfreemap.org/styles/liberty';
 
 function mulberry32(seed: number) {
   let a = seed;
@@ -274,7 +277,7 @@ export function TerritoryHeatmap({
         </div>
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#6B7280]">
-        <span>OpenFreeMap · sem chave · clique no bairro</span>
+        <span>{CARTO_KEY ? '© OpenStreetMap · © CARTO · clique no bairro' : 'OpenFreeMap · sem chave · clique no bairro'}</span>
         <div className="flex items-center gap-1">
           <span>baixa</span>
           <span className="h-2 w-4 rounded-sm bg-[#14532D]" />
