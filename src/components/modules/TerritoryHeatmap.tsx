@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Map as MapLibreMap, Marker, NavigationControl, type GeoJSONSource, type Map as MapType } from 'maplibre-gl';
+﻿import { useEffect, useRef, useState } from 'react';
+import { Map as MapLibreMap, LngLatBounds, NavigationControl, type GeoJSONSource, type Map as MapType } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 export interface HeatZone {
@@ -9,6 +9,8 @@ export interface HeatZone {
   lat: number;
   v: number;
   leads: number;
+  color: string;
+  ring?: [number, number][];
 }
 
 const CARTO_KEY = import.meta.env.VITE_CARTO_API_KEY ?? '';
@@ -21,7 +23,7 @@ const STYLE = CARTO_KEY
           type: 'raster' as const,
           tiles: [`https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=${CARTO_KEY}`],
           tileSize: 256,
-          attribution: '© OpenStreetMap © CARTO',
+          attribution: 'Â© OpenStreetMap Â© CARTO',
         },
       },
       layers: [{ id: 'carto', type: 'raster' as const, source: 'carto' }],
@@ -62,7 +64,7 @@ function labels(zones: HeatZone[]) {
     type: 'FeatureCollection' as const,
     features: zones.map((z) => ({
       type: 'Feature' as const,
-      properties: { label: `${z.label} · ${z.leads}`, city: z.city },
+      properties: { label: `${z.label} Â· ${z.leads}`, city: z.city },
       geometry: { type: 'Point' as const, coordinates: [z.lng, z.lat] },
     })),
   };
@@ -82,51 +84,53 @@ function nearestCity(zones: HeatZone[], lng: number, lat: number) {
   return best;
 }
 
-const stains = new WeakMap<MapType, Marker[]>();
+const veils = new WeakMap<MapType, () => void>();
 
-function heatRgb(v: number): [number, number, number] {
-  const ramp: Array<[number, [number, number, number]]> = [
-    [0, [34, 197, 94]],
-    [0.35, [22, 163, 74]],
-    [0.55, [250, 204, 21]],
-    [0.75, [249, 115, 22]],
-    [1, [220, 38, 38]],
-  ];
-  const t = Math.min(1, Math.max(0, v));
-  let index = 0;
-  while (index < ramp.length - 1 && ramp[index + 1][0] < t) index += 1;
-  const [start, from] = ramp[index];
-  const [end, to] = ramp[Math.min(index + 1, ramp.length - 1)];
-  const span = end === start ? 1 : (t - start) / (end - start);
-  return [
-    Math.round(from[0] + (to[0] - from[0]) * span),
-    Math.round(from[1] + (to[1] - from[1]) * span),
-    Math.round(from[2] + (to[2] - from[2]) * span),
-  ];
+function rgba(hex: string, alpha: number) {
+  const n = hex.replace('#', '');
+  const r = Number.parseInt(n.slice(0, 2), 16);
+  const g = Number.parseInt(n.slice(2, 4), 16);
+  const b = Number.parseInt(n.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
 }
 
-function stain(v: number) {
-  const [r, g, b] = heatRgb(v);
-  const el = document.createElement('div');
-  el.style.width = '280px';
-  el.style.height = '280px';
-  el.style.borderRadius = '999px';
-  el.style.pointerEvents = 'none';
-  el.style.background = `radial-gradient(circle, rgba(${r},${g},${b},0.92) 0%, rgba(${r},${g},${b},0.6) 36%, rgba(${r},${g},${b},0) 70%)`;
-  el.style.boxShadow = `0 0 24px rgba(${r},${g},${b},0.45)`;
-  return el;
-}
-
-function syncStains(map: MapType, zones: HeatZone[]) {
-  for (const marker of stains.get(map) ?? []) marker.remove();
-  stains.set(
-    map,
-    zones.map((z) => {
-      const marker = new Marker({ element: stain(z.v), anchor: 'center' }).setLngLat([z.lng, z.lat]).addTo(map);
-      marker.getElement().style.zIndex = '1';
-      return marker;
-    }),
-  );
+function attachCityVeil(map: MapType, getZones: () => HeatZone[]) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.style.position = 'absolute';
+  svg.style.inset = '0';
+  svg.style.width = '100%';
+  svg.style.height = '100%';
+  svg.style.zIndex = '40';
+  svg.style.pointerEvents = 'none';
+  svg.style.overflow = 'visible';
+  const draw = () => {
+    const box = map.getContainer();
+    const width = box.clientWidth || 1;
+    const height = box.clientHeight || 1;
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    svg.replaceChildren();
+    for (const zone of getZones()) {
+      if (!zone.ring || zone.ring.length < 3) continue;
+      const shape = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      shape.setAttribute('fill', rgba(zone.color, 0.22));
+      shape.setAttribute('stroke', zone.color);
+      shape.setAttribute('stroke-width', '2.5');
+      shape.setAttribute('stroke-dasharray', '8 6');
+      shape.setAttribute('stroke-linejoin', 'round');
+      shape.setAttribute('points', zone.ring.map(([lng, lat]) => {
+        const point = map.project([lng, lat]);
+        return `${point.x.toFixed(1)},${point.y.toFixed(1)}`;
+      }).join(' '));
+      svg.appendChild(shape);
+    }
+    box.appendChild(svg);
+  };
+  veils.set(map, draw);
+  map.on('move', draw);
+  map.on('resize', draw);
+  map.on('load', draw);
+  draw();
 }
 
 function addHeat(map: MapType, zones: HeatZone[]) {
@@ -176,44 +180,9 @@ function addHeat(map: MapType, zones: HeatZone[]) {
 }
 
 const RIO: [number, number] = [-43.1729, -22.9068];
-const RIO_RING: [number, number][] = [[-43.7963,-22.9192],[-43.7454,-22.9461],[-43.6898,-22.992],[-43.6743,-22.9805],[-43.6532,-23.0028],[-43.6231,-23.008],[-43.5996,-23.0229],[-43.6196,-23.0329],[-43.6638,-23.0411],[-43.6678,-23.0532],[-43.589,-23.0534],[-43.5661,-23.0625],[-43.5724,-23.0732],[-43.5532,-23.0764],[-43.5491,-23.0621],[-43.5347,-23.0505],[-43.5083,-23.0475],[-43.4985,-23.0372],[-43.4816,-23.0325],[-43.4684,-23.0379],[-43.4658,-23.0293],[-43.4386,-23.021],[-43.3591,-23.011],[-43.2865,-23.0164],[-43.2869,-23.0098],[-43.2755,-23.0027],[-43.2408,-23.0004],[-43.2251,-22.9883],[-43.1897,-22.9907],[-43.1835,-22.9858],[-43.1891,-22.9829],[-43.1836,-22.973],[-43.1594,-22.9644],[-43.1643,-22.9544],[-43.1502,-22.9508],[-43.156,-22.9436],[-43.1521,-22.9386],[-43.1697,-22.9529],[-43.1805,-22.948],[-43.1687,-22.9388],[-43.1675,-22.9191],[-43.1727,-22.9167],[-43.1617,-22.9168],[-43.1619,-22.9047],[-43.1734,-22.9021],[-43.179,-22.8923],[-43.2108,-22.8976],[-43.2159,-22.8863],[-43.2013,-22.8715],[-43.2099,-22.867],[-43.217,-22.8759],[-43.2267,-22.8741],[-43.2433,-22.8422],[-43.2649,-22.8265],[-43.2728,-22.8098],[-43.2902,-22.8104],[-43.3082,-22.7999],[-43.37,-22.8053],[-43.4149,-22.8212],[-43.427,-22.8369],[-43.4581,-22.849],[-43.4824,-22.8304],[-43.4901,-22.8155],[-43.5594,-22.8289],[-43.5885,-22.8387],[-43.5929,-22.8605],[-43.6235,-22.8628],[-43.6441,-22.8557],[-43.6651,-22.8652],[-43.7115,-22.8668],[-43.7343,-22.8783],[-43.7482,-22.8779],[-43.7516,-22.8887],[-43.7948,-22.9035],[-43.7907,-22.9143],[-43.7962,-22.9189],[-43.7963,-22.9192]];
-
-function attachRioVeil(map: MapType) {
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('aria-hidden', 'true');
-  svg.style.position = 'absolute';
-  svg.style.inset = '0';
-  svg.style.width = '100%';
-  svg.style.height = '100%';
-  svg.style.zIndex = '40';
-  svg.style.pointerEvents = 'none';
-  svg.style.overflow = 'visible';
-  const shape = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-  shape.setAttribute('fill', 'rgba(220,38,38,0.22)');
-  shape.setAttribute('stroke', '#DC2626');
-  shape.setAttribute('stroke-width', '2.5');
-  shape.setAttribute('stroke-dasharray', '8 6');
-  shape.setAttribute('stroke-linejoin', 'round');
-  svg.appendChild(shape);
-  const draw = () => {
-    const box = map.getContainer();
-    const width = box.clientWidth || 1;
-    const height = box.clientHeight || 1;
-    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-    shape.setAttribute('points', RIO_RING.map(([lng, lat]) => {
-      const point = map.project([lng, lat]);
-      return `${point.x.toFixed(1)},${point.y.toFixed(1)}`;
-    }).join(' '));
-    box.appendChild(svg);
-  };
-  map.on('move', draw);
-  map.on('resize', draw);
-  map.on('load', draw);
-  draw();
-}
 
 function paintHeat(map: MapType, zones: HeatZone[]) {
-  syncStains(map, zones);
+  veils.get(map)?.();
   const heat = map.getSource('heat') as GeoJSONSource | undefined;
   const labelSource = map.getSource('labels') as GeoJSONSource | undefined;
   if (!heat || !labelSource || !map.getLayer('lead-heat')) {
@@ -235,8 +204,7 @@ function createMap(el: HTMLDivElement, opts: { center: [number, number]; zoom: n
     attributionControl: false,
   });
   map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
-  syncStains(map, getZones());
-  if (veil) attachRioVeil(map);
+  if (veil) attachCityVeil(map, getZones);
   map.on('load', () => {
     map.resize();
     paintHeat(map, getZones());
@@ -317,11 +285,17 @@ export function TerritoryHeatmap({
     const overview = overviewRef.current;
     const street = streetRef.current;
     if (!overview || !street) return;
-    const rio = zones.find((item) => /rio de janeiro/i.test(item.city));
-    const z = zones.find((item) => item.city === selected) ?? rio ?? zones[0];
-    if (z) {
-      overview.easeTo({ center: [z.lng, z.lat], zoom: 12, pitch: 25, duration: 700 });
-      street.easeTo({ center: [z.lng, z.lat], zoom: 15, pitch: 55, bearing: 18, duration: 700 });
+    const chosen = zones.find((item) => item.city === selected);
+    const framed = chosen ? [chosen] : zones;
+    if (framed.length > 0) {
+      const bounds = new LngLatBounds();
+      for (const zone of framed) {
+        if (zone.ring && zone.ring.length > 0) zone.ring.forEach(([lng, lat]) => bounds.extend([lng, lat]));
+        else bounds.extend([zone.lng, zone.lat]);
+      }
+      overview.fitBounds(bounds, { padding: 28, duration: 700, maxZoom: chosen ? 12 : 8 });
+      const focus = chosen ?? framed[0];
+      street.easeTo({ center: [focus.lng, focus.lat], zoom: 14, pitch: 55, bearing: 18, duration: 700 });
       return;
     }
     focusRio(overview, 11, 20);
@@ -340,7 +314,7 @@ export function TerritoryHeatmap({
         .then((data: { features?: { properties?: { name?: string; city?: string; street?: string }; geometry: { coordinates: number[] } }[] }) => {
           setHits(
             (data.features ?? []).map((f) => ({
-              label: [f.properties?.name, f.properties?.street, f.properties?.city].filter(Boolean).join(' · ') || 'Local',
+              label: [f.properties?.name, f.properties?.street, f.properties?.city].filter(Boolean).join(' Â· ') || 'Local',
               lng: f.geometry.coordinates[0],
               lat: f.geometry.coordinates[1],
             })),
@@ -366,7 +340,7 @@ export function TerritoryHeatmap({
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar endereço ou bairro (Photon / OSM, grátis)"
+          placeholder="Buscar endereÃ§o ou bairro (Photon / OSM, grÃ¡tis)"
           className="h-10 w-full rounded-xl border border-[#E5E7EB] bg-white px-3 text-sm"
         />
         {hits.length > 0 ? (
@@ -393,15 +367,16 @@ export function TerritoryHeatmap({
         </div>
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#6B7280]">
-        <span>{CARTO_KEY ? '© OpenStreetMap · © CARTO · clique no bairro' : 'OpenFreeMap · sem chave · clique no bairro'}</span>
+        <span>{CARTO_KEY ? 'Â© OpenStreetMap Â· Â© CARTO Â· clique no bairro' : 'OpenFreeMap Â· sem chave Â· clique no bairro'}</span>
         <div className="flex items-center gap-1">
-          <span>baixa</span>
-          <span className="h-2 w-4 rounded-sm bg-[#14532D]" />
+          <span>aberto</span>
           <span className="h-2 w-4 rounded-sm bg-[#16A34A]" />
+          <span>estudo</span>
           <span className="h-2 w-4 rounded-sm bg-[#FACC15]" />
+          <span>acordo</span>
           <span className="h-2 w-4 rounded-sm bg-[#F97316]" />
+          <span>perdido</span>
           <span className="h-2 w-4 rounded-sm bg-[#DC2626]" />
-          <span>alta</span>
         </div>
       </div>
     </div>

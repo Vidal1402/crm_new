@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search } from 'lucide-react';
 import { ModuleHeader, Panel, fieldClass } from '@/components/modules/ModuleChrome';
 import { TerritoryHeatmap, type HeatZone, heatZoneLabel } from '@/components/modules/TerritoryHeatmap';
 import { knownCity } from '@/lib/geocode';
+import { cityRing, loadCityRing } from '@/lib/cityShape';
+import { HEAT_COLORS, contactStatusColor, hottestColor } from '@/lib/heatStatus';
 import { useCrmFeed } from '@/hooks/useCrmFeed';
 import { cn } from '@/lib/utils';
 
@@ -13,7 +15,26 @@ export default function ProspeccaoPage() {
   const [list, setList] = useState('Todas');
   const [zone, setZone] = useState<string | null>(null);
   const [newList, setNewList] = useState('');
+  const [extraRings, setExtraRings] = useState<Record<string, [number, number][]>>({});
+  const triedRings = useRef(new Set<string>());
   const lists = [...new Set(feed.contacts.map((item) => item.list).filter(Boolean))];
+  const cityNames = [...new Set(feed.contacts.map((item) => item.city).filter(Boolean))].sort().join('|');
+  useEffect(() => {
+    const missing = cityNames.split('|').filter((city) => city && !cityRing(city) && !triedRings.current.has(city));
+    if (missing.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      for (const city of missing.slice(0, 6)) {
+        triedRings.current.add(city);
+        const ring = await loadCityRing(city);
+        if (cancelled || !ring) continue;
+        setExtraRings((current) => ({ ...current, [city]: ring }));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [cityNames]);
   const zones = useMemo<HeatZone[]>(() => {
     const counts = new Map<string, number>();
     for (const contact of feed.contacts) {
@@ -26,9 +47,21 @@ export default function ProspeccaoPage() {
         ? { lat: sample.lat, lng: sample.lng }
         : knownCity(city);
       if (!point) return [];
-      return [{ city, label: city, lng: point.lng, lat: point.lat, v: Math.min(1, leads / 20), leads }];
+      const colors = feed.deals
+        .filter((deal) => feed.contacts.some((item) => item.id === deal.contactId && item.city === city))
+        .map((deal) => contactStatusColor(deal.stageName, deal.status));
+      return [{
+        city,
+        label: city,
+        lng: point.lng,
+        lat: point.lat,
+        v: Math.min(1, leads / 20),
+        leads,
+        color: colors.length > 0 ? hottestColor(colors) : HEAT_COLORS.green,
+        ring: cityRing(city) ?? extraRings[city],
+      }];
     });
-  }, [feed.contacts]);
+  }, [feed.contacts, feed.deals, extraRings]);
   const filtered = feed.contacts.filter((item) => {
     const hay = `${item.name} ${item.city} ${item.address} ${item.phone} ${item.email}`.toLowerCase();
     const pipelineNames = feed.deals.filter((deal) => deal.contactId === item.id).map((deal) => deal.pipelineName);
