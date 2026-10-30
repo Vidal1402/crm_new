@@ -36,6 +36,7 @@ const NICHES: Record<string, { key: string; value: string }> = {
   'pet shop': { key: 'shop', value: 'pet' },
   oficina: { key: 'shop', value: 'car_repair' },
   salao: { key: 'shop', value: 'hairdresser' },
+  estetica: { key: 'shop', value: 'beauty' },
 };
 
 export function nicheKey(niche: string): string {
@@ -56,6 +57,7 @@ const CNAE: Record<string, string> = {
   'pet shop': '4789004',
   oficina: '4520001',
   salao: '9602501',
+  estetica: '9602502',
 };
 
 export function nicheCnae(niche: string): string | null {
@@ -76,7 +78,7 @@ export function parseRegistry(
     const row = item as Record<string, unknown>;
     if (String(row.cnae_fiscal ?? '') !== cnae) continue;
     if (text(row.descricao_situacao_cadastral) !== 'ATIVA') continue;
-    const name = text(row.nome_fantasia) || text(row.razao_social);
+    const name = publicName(text(row.nome_fantasia) || text(row.razao_social));
     if (!name) continue;
     const street = [text(row.descricao_tipo_de_logradouro), text(row.logradouro), text(row.numero)].filter(Boolean).join(' ');
     hits.push({
@@ -152,6 +154,10 @@ function coord(value: unknown): number | null {
 
 function cityName(value: string): string {
   return value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function publicName(value: string): string {
+  return value.replace(/\*+\d*\*+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function emailOf(value: string): string {

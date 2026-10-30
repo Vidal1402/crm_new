@@ -1,6 +1,6 @@
 import { fillContacts, leadCount, nicheCnae, nicheKey, nicheTag, parseNominatim, parseOverpass, parsePhoton, parseRegistry, placeQuery, readHomepageLinks, type PlaceArea, type PlaceHit } from './places';
 
-export { nicheTag };
+export { nicheCnae, nicheTag };
 
 const OVERPASS = [
   'https://overpass-api.de/api/interpreter',
@@ -152,7 +152,7 @@ export async function registryPlaces(niche: string, city: string, area: PlaceAre
   const ibge = await cityIbge(city);
   if (!ibge) return [];
   const count = leadCount(limit);
-  const response = await fetch(`https://minhareceita.org/?cnae_fiscal=${cnae}&municipio=${ibge}&limit=${Math.min(100, count * 5)}`, {
+  const response = await fetch(`https://minhareceita.org/?cnae_fiscal=${cnae}&municipio=${ibge}&limit=100`, {
     headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
     signal: AbortSignal.timeout(8000),
   });

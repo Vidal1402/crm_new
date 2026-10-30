@@ -124,12 +124,13 @@ test('parseNominatim keeps the city from the address', () => {
 
 test('parseRegistry keeps the active company phone and drops partners', () => {
   assert.equal(nicheCnae('Padaria'), '4721102');
+  assert.equal(nicheCnae('estética'), '9602502');
   const places = parseRegistry({
     data: [
       {
         cnae_fiscal: 4721102,
         descricao_situacao_cadastral: 'ATIVA',
-        nome_fantasia: 'Padaria do Teste',
+        nome_fantasia: 'Padaria do Teste ***00000***',
         razao_social: 'Padaria do Teste LTDA',
         descricao_tipo_de_logradouro: 'RUA',
         logradouro: 'DO TESTE',

@@ -11,7 +11,8 @@ var NICHES = {
   mercado: { key: "shop", value: "supermarket" },
   "pet shop": { key: "shop", value: "pet" },
   oficina: { key: "shop", value: "car_repair" },
-  salao: { key: "shop", value: "hairdresser" }
+  salao: { key: "shop", value: "hairdresser" },
+  estetica: { key: "shop", value: "beauty" }
 };
 function nicheKey(niche) {
   return niche.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -28,7 +29,8 @@ var CNAE = {
   mercado: "4712100",
   "pet shop": "4789004",
   oficina: "4520001",
-  salao: "9602501"
+  salao: "9602501",
+  estetica: "9602502"
 };
 function nicheCnae(niche) {
   return CNAE[nicheKey(niche)] ?? null;
@@ -41,7 +43,7 @@ function parseRegistry(data, fallbackCity, cnae, point, limit = 10) {
     const row = item;
     if (String(row.cnae_fiscal ?? "") !== cnae) continue;
     if (text(row.descricao_situacao_cadastral) !== "ATIVA") continue;
-    const name = text(row.nome_fantasia) || text(row.razao_social);
+    const name = publicName(text(row.nome_fantasia) || text(row.razao_social));
     if (!name) continue;
     const street = [text(row.descricao_tipo_de_logradouro), text(row.logradouro), text(row.numero)].filter(Boolean).join(" ");
     hits.push({
@@ -96,6 +98,9 @@ function coord(value) {
 }
 function cityName(value) {
   return value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+function publicName(value) {
+  return value.replace(/\*+\d*\*+/g, " ").replace(/\s+/g, " ").trim();
 }
 function emailOf(value) {
   const email = value.trim();
@@ -397,7 +402,7 @@ async function registryPlaces(niche, city, area, limit = 10) {
   const ibge = await cityIbge(city);
   if (!ibge) return [];
   const count = leadCount(limit);
-  const response = await fetch(`https://minhareceita.org/?cnae_fiscal=${cnae}&municipio=${ibge}&limit=${Math.min(100, count * 5)}`, {
+  const response = await fetch(`https://minhareceita.org/?cnae_fiscal=${cnae}&municipio=${ibge}&limit=100`, {
     headers: { Accept: "application/json", "User-Agent": USER_AGENT },
     signal: AbortSignal.timeout(8e3)
   });
@@ -439,6 +444,7 @@ async function findPlaces(niche, city, area, limit = 10) {
 }
 export {
   findPlaces,
+  nicheCnae,
   nicheTag,
   registryPlaces
 };
