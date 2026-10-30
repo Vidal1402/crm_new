@@ -84,8 +84,21 @@ function nearestCity(zones: HeatZone[], lng: number, lat: number) {
 
 function addHeat(map: MapType, zones: HeatZone[]) {
   if (map.getSource('heat')) return;
-  map.addSource('heat', { type: 'geojson', data: heatPoints(zones) });
-  map.addSource('labels', { type: 'geojson', data: labels(zones) });
+  const drawn = withRio(zones);
+  map.addSource('heat', { type: 'geojson', data: heatPoints(drawn) });
+  map.addSource('labels', { type: 'geojson', data: labels(drawn) });
+  map.addLayer({
+    id: 'lead-dot',
+    type: 'circle',
+    source: 'labels',
+    paint: {
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 48, 14, 90],
+      'circle-color': '#FF0000',
+      'circle-opacity': 0.95,
+      'circle-stroke-width': 6,
+      'circle-stroke-color': '#FFFFFF',
+    },
+  });
   map.addLayer({
     id: 'lead-heat',
     type: 'heatmap',
@@ -104,18 +117,6 @@ function addHeat(map: MapType, zones: HeatZone[]) {
         0.01, '#DC2626',
         1, '#7F1D1D',
       ],
-    },
-  });
-  map.addLayer({
-    id: 'lead-dot',
-    type: 'circle',
-    source: 'labels',
-    paint: {
-      'circle-radius': 36,
-      'circle-color': '#DC2626',
-      'circle-opacity': 0.9,
-      'circle-stroke-width': 4,
-      'circle-stroke-color': '#7F1D1D',
     },
   });
   map.addLayer({
@@ -138,6 +139,12 @@ function addHeat(map: MapType, zones: HeatZone[]) {
 }
 
 const RIO: [number, number] = [-43.1729, -22.9068];
+const RIO_MARK: HeatZone = { city: 'Rio de Janeiro', label: 'Rio de Janeiro', lng: RIO[0], lat: RIO[1], v: 1, leads: 1 };
+
+function withRio(zones: HeatZone[]) {
+  if (zones.some((item) => /rio de janeiro/i.test(item.city))) return zones;
+  return [RIO_MARK, ...zones];
+}
 
 function paintHeat(map: MapType, zones: HeatZone[]) {
   const heat = map.getSource('heat') as GeoJSONSource | undefined;
@@ -146,8 +153,9 @@ function paintHeat(map: MapType, zones: HeatZone[]) {
     addHeat(map, zones);
     return;
   }
-  heat.setData(heatPoints(zones));
-  labelSource.setData(labels(zones));
+  const drawn = withRio(zones);
+  heat.setData(heatPoints(drawn));
+  labelSource.setData(labels(drawn));
 }
 
 function createMap(el: HTMLDivElement, opts: { center: [number, number]; zoom: number; pitch: number; bearing: number }, zones: HeatZone[]) {
@@ -241,8 +249,9 @@ export function TerritoryHeatmap({
     const overview = overviewRef.current;
     const street = streetRef.current;
     if (!overview || !street) return;
-    const rio = zones.find((item) => /rio de janeiro/i.test(item.city));
-    const z = zones.find((item) => item.city === selected) ?? rio ?? zones[0];
+    const drawn = withRio(zones);
+    const rio = drawn.find((item) => /rio de janeiro/i.test(item.city));
+    const z = drawn.find((item) => item.city === selected) ?? rio ?? drawn[0];
     if (z) {
       overview.easeTo({ center: [z.lng, z.lat], zoom: 12, pitch: 25, duration: 700 });
       street.easeTo({ center: [z.lng, z.lat], zoom: 15, pitch: 55, bearing: 18, duration: 700 });
