@@ -1,16 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { CITY_RINGS } from '../src/lib/cityRings.ts';
-import { nicheTag, parseNominatim, parseOverpass, parsePhoton, placeQuery, ringBox } from '../src/lib/places.ts';
+import { leadCount, nicheTag, parseNominatim, parseOverpass, parsePhoton, placeQuery, readHomepageLinks, ringBox } from '../src/lib/places.ts';
 
 test('a niche query asks for the category inside the city', () => {
   const rio = ringBox(CITY_RINGS['rio de janeiro']);
   assert.ok(rio);
-  const query = placeQuery('padaria', rio!);
+  const query = placeQuery('padaria', rio!, 5);
   assert.ok(query);
   assert.match(query!, /\["shop"="bakery"\]/);
   assert.match(query!, /around:12000/);
-  assert.match(query!, /out center 15/);
+  assert.match(query!, /out center 5/);
+  assert.equal(leadCount(5), 5);
+  assert.equal(leadCount(80), 30);
+  assert.equal(leadCount(''), 10);
   assert.equal(nicheTag('Salão')?.value, 'hairdresser');
   const unknown = placeQuery('Café. Colombo', rio!);
   assert.match(unknown!, /Café\\\. Colombo/);
@@ -36,6 +39,41 @@ test('parseOverpass keeps several businesses from one niche', () => {
   assert.deepEqual(places.map((place) => place.name), ['Padaria Catete', 'Padaria Napoles', 'Padaria do Raphael']);
   assert.equal(places[0].phone, '+55 21 2558-0001');
   assert.equal(places[0].city, 'Rio de Janeiro');
+});
+
+test('parseOverpass respects the requested limit and reads contact links', () => {
+  const places = parseOverpass({
+    elements: [
+      {
+        lat: -22.91, lon: -43.18,
+        tags: {
+          name: 'Padaria Catete',
+          phone: '+55 21 2558-0001',
+          email: 'contato@padaria.test',
+          'contact:instagram': 'https://www.instagram.com/padariacatete',
+          'contact:linkedin': 'https://www.linkedin.com/company/padaria-catete',
+          'addr:city': 'Rio de Janeiro',
+        },
+      },
+      { lat: -22.92, lon: -43.19, tags: { name: 'Padaria Napoles', 'addr:city': 'Rio de Janeiro' } },
+      { lat: -22.93, lon: -43.17, tags: { name: 'Padaria do Raphael', 'addr:city': 'Rio de Janeiro' } },
+      { lat: -22.94, lon: -43.16, tags: { name: 'Padaria Abaeté', 'addr:city': 'Rio de Janeiro' } },
+    ],
+  }, 'Rio de Janeiro', 2);
+  assert.deepEqual(places.map((place) => place.name), ['Padaria Catete', 'Padaria Napoles']);
+  assert.equal(places[0].email, 'contato@padaria.test');
+  assert.equal(places[0].instagram, 'https://www.instagram.com/padariacatete');
+  assert.equal(places[0].linkedin, 'https://www.linkedin.com/company/padaria-catete');
+  assert.equal(places[1].email, '');
+  assert.equal(places[1].instagram, '');
+  assert.equal(places[1].linkedin, '');
+});
+
+test('readHomepageLinks keeps only the contact links on the page', () => {
+  const found = readHomepageLinks('<a href="mailto:oi@padaria.test">mail</a><a href="https://www.instagram.com/padariacatete">ig</a><a href="https://www.linkedin.com/company/padaria-catete">li</a><a href="https://example.com/sobre">sobre</a>');
+  assert.equal(found.email, 'oi@padaria.test');
+  assert.equal(found.instagram, 'https://www.instagram.com/padariacatete');
+  assert.equal(found.linkedin, 'https://www.linkedin.com/company/padaria-catete');
 });
 
 test('parsePhoton drops a road and keeps the shops', () => {

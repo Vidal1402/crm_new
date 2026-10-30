@@ -5,7 +5,7 @@ import { TerritoryHeatmap, type HeatZone, heatZoneLabel } from '@/components/mod
 import { knownCity, cityKey, sameCity, geocodeCity } from '@/lib/geocode';
 import { cityRing, loadCityRing } from '@/lib/cityShape';
 import { HEAT_COLORS, contactStatusColor, hottestColor } from '@/lib/heatStatus';
-import { ringBox, type PlaceHit } from '@/lib/places';
+import { leadCount, ringBox, type PlaceHit } from '@/lib/places';
 import { normalizePhone } from '@/lib/phone';
 import { useCrmFeed } from '@/hooks/useCrmFeed';
 import { cn } from '@/lib/utils';
@@ -18,6 +18,7 @@ export default function ProspeccaoPage() {
   const [zone, setZone] = useState<string | null>(null);
   const [newList, setNewList] = useState('');
   const [niche, setNiche] = useState('');
+  const [count, setCount] = useState('10');
   const [companyCity, setCompanyCity] = useState('Rio de Janeiro');
   const [hits, setHits] = useState<PlaceHit[]>([]);
   const [phones, setPhones] = useState<Record<string, string>>({});
@@ -68,7 +69,7 @@ export default function ProspeccaoPage() {
       const response = await fetch('/api/places', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ niche: wanted, city, lat: point.lat, lng: point.lng, ...(box ?? {}) }),
+        body: JSON.stringify({ niche: wanted, city, limit: leadCount(count), lat: point.lat, lng: point.lng, ...(box ?? {}) }),
       });
       const data = await response.json() as { places?: PlaceHit[]; knownNiche?: boolean; error?: string };
       if (!response.ok) {
@@ -159,6 +160,7 @@ export default function ProspeccaoPage() {
         >
           <input value={companyCity} onChange={(event) => setCompanyCity(event.target.value)} placeholder="Cidade" className={cn(fieldClass, 'w-48')} />
           <input value={niche} onChange={(event) => setNiche(event.target.value)} placeholder="Nicho, ex. padaria" className={cn(fieldClass, 'min-w-[220px] flex-1')} />
+          <input value={count} onChange={(event) => setCount(event.target.value)} inputMode="numeric" placeholder="Quantidade" className={cn(fieldClass, 'w-28')} />
           <button type="submit" disabled={searching} className="h-10 rounded-lg bg-[#111827] px-3 text-sm font-medium text-white disabled:opacity-60">
             {searching ? 'Buscando' : 'Buscar'}
           </button>
@@ -170,17 +172,33 @@ export default function ProspeccaoPage() {
             const draft = phones[key] ?? '';
             const ready = normalizePhone(draft).ok;
             return (
-              <li key={key} className="flex flex-wrap items-center gap-3 py-3">
-                <div className="min-w-[180px] flex-1">
+              <li key={key} className="grid items-start gap-3 py-3 md:grid-cols-[minmax(160px,1.2fr)_minmax(140px,1fr)_minmax(140px,1fr)_minmax(120px,1fr)_minmax(120px,1fr)_auto]">
+                <div className="min-w-0">
+                  <div className="text-[12px] text-[#6B7280]">Comércio</div>
                   <div className="font-medium text-[#111827]">{hit.name}</div>
                   <div className="text-[12px] text-[#6B7280]">{[hit.address, hit.city].filter(Boolean).join(' · ') || hit.city}</div>
                 </div>
-                <input
-                  value={draft}
-                  onChange={(event) => setPhones((current) => ({ ...current, [key]: event.target.value }))}
-                  placeholder="Telefone para gravar"
-                  className={cn(fieldClass, 'w-48')}
-                />
+                <label className="min-w-0">
+                  <span className="text-[12px] text-[#6B7280]">Telefone</span>
+                  <input
+                    value={draft}
+                    onChange={(event) => setPhones((current) => ({ ...current, [key]: event.target.value }))}
+                    placeholder="—"
+                    className={cn(fieldClass, 'mt-1 w-full')}
+                  />
+                </label>
+                <div className="min-w-0">
+                  <div className="text-[12px] text-[#6B7280]">E-mail</div>
+                  <div className="truncate text-[#111827]">{hit.email || '—'}</div>
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[12px] text-[#6B7280]">Instagram</div>
+                  {hit.instagram ? <a href={hit.instagram} target="_blank" rel="noreferrer" className="block truncate text-[#111827] underline">{hit.instagram.replace(/^https?:\/\/(www\.)?/, '')}</a> : <div className="text-[#111827]">—</div>}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[12px] text-[#6B7280]">LinkedIn</div>
+                  {hit.linkedin ? <a href={hit.linkedin} target="_blank" rel="noreferrer" className="block truncate text-[#111827] underline">{hit.linkedin.replace(/^https?:\/\/(www\.)?/, '')}</a> : <div className="text-[#111827]">—</div>}
+                </div>
                 <button
                   type="button"
                   disabled={!ready || saved[key] !== undefined}
@@ -191,10 +209,13 @@ export default function ProspeccaoPage() {
                     void feed.addContact({
                       name: hit.name,
                       phone: parsed.e164,
+                      email: hit.email,
                       city: hit.city || companyCity.trim(),
                       address: hit.address,
                       lat: hit.lat,
                       lng: hit.lng,
+                      instagram: hit.instagram,
+                      linkedin: hit.linkedin,
                       list: list === 'Todas' ? newList.trim() : list,
                     }).then((ok) => {
                       setSaved((current) => {
