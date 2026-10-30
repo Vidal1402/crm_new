@@ -93,21 +93,29 @@ function addHeat(map: MapType, zones: HeatZone[]) {
     maxzoom: 16,
     paint: {
       'heatmap-weight': ['get', 'weight'],
-      'heatmap-intensity': 1.8,
-      'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 8, 28, 12, 64],
+      'heatmap-intensity': 2.4,
+      'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 8, 40, 12, 90],
       'heatmap-opacity': 0.95,
       'heatmap-color': [
         'interpolate',
         ['linear'],
         ['heatmap-density'],
-        0, 'rgba(0,0,0,0)',
-        0.04, '#14532D',
-        0.15, '#16A34A',
-        0.35, '#4ADE80',
-        0.55, '#FACC15',
-        0.75, '#F97316',
-        1, '#DC2626',
+        0, 'rgba(220,38,38,0)',
+        0.01, '#DC2626',
+        1, '#7F1D1D',
       ],
+    },
+  });
+  map.addLayer({
+    id: 'lead-dot',
+    type: 'circle',
+    source: 'labels',
+    paint: {
+      'circle-radius': 36,
+      'circle-color': '#DC2626',
+      'circle-opacity': 0.9,
+      'circle-stroke-width': 4,
+      'circle-stroke-color': '#7F1D1D',
     },
   });
   map.addLayer({
@@ -234,7 +242,7 @@ export function TerritoryHeatmap({
     const street = streetRef.current;
     if (!overview || !street) return;
     const rio = zones.find((item) => /rio de janeiro/i.test(item.city));
-    const z = zones.find((item) => item.city === selected) ?? rio;
+    const z = zones.find((item) => item.city === selected) ?? rio ?? zones[0];
     if (z) {
       overview.easeTo({ center: [z.lng, z.lat], zoom: 12, pitch: 25, duration: 700 });
       street.easeTo({ center: [z.lng, z.lat], zoom: 15, pitch: 55, bearing: 18, duration: 700 });
