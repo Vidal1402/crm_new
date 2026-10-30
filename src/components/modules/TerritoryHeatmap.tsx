@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Map as MapLibreMap, NavigationControl, type GeoJSONSource, type Map as MapType } from 'maplibre-gl';
+import { Map as MapLibreMap, Marker, NavigationControl, type GeoJSONSource, type Map as MapType } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 export interface HeatZone {
@@ -82,11 +82,32 @@ function nearestCity(zones: HeatZone[], lng: number, lat: number) {
   return best;
 }
 
+const dots = new WeakMap<MapType, Marker[]>();
+
+function redDot() {
+  const el = document.createElement('div');
+  el.style.width = '72px';
+  el.style.height = '72px';
+  el.style.borderRadius = '999px';
+  el.style.background = '#FF0000';
+  el.style.border = '5px solid #FFFFFF';
+  el.style.boxShadow = '0 0 0 8px rgba(255,0,0,0.45)';
+  return el;
+}
+
+function syncDots(map: MapType, zones: HeatZone[]) {
+  for (const marker of dots.get(map) ?? []) marker.remove();
+  dots.set(
+    map,
+    withRio(zones).map((z) => new Marker({ element: redDot(), anchor: 'center' }).setLngLat([z.lng, z.lat]).addTo(map)),
+  );
+}
+
 function addHeat(map: MapType, zones: HeatZone[]) {
-  if (map.getSource('heat')) return;
+  if (map.getLayer('lead-dot')) return;
   const drawn = withRio(zones);
-  map.addSource('heat', { type: 'geojson', data: heatPoints(drawn) });
-  map.addSource('labels', { type: 'geojson', data: labels(drawn) });
+  if (!map.getSource('heat')) map.addSource('heat', { type: 'geojson', data: heatPoints(drawn) });
+  if (!map.getSource('labels')) map.addSource('labels', { type: 'geojson', data: labels(drawn) });
   map.addLayer({
     id: 'lead-dot',
     type: 'circle',
@@ -147,9 +168,10 @@ function withRio(zones: HeatZone[]) {
 }
 
 function paintHeat(map: MapType, zones: HeatZone[]) {
+  syncDots(map, zones);
   const heat = map.getSource('heat') as GeoJSONSource | undefined;
   const labelSource = map.getSource('labels') as GeoJSONSource | undefined;
-  if (!heat || !labelSource) {
+  if (!heat || !labelSource || !map.getLayer('lead-dot')) {
     addHeat(map, zones);
     return;
   }
@@ -169,9 +191,10 @@ function createMap(el: HTMLDivElement, opts: { center: [number, number]; zoom: n
     attributionControl: false,
   });
   map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
+  syncDots(map, zones);
   map.on('load', () => {
     map.resize();
-    addHeat(map, zones);
+    paintHeat(map, zones);
   });
   return map;
 }
