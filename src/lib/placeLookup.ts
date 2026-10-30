@@ -1,4 +1,4 @@
-import { leadCount, nicheTag, parseNominatim, parseOverpass, parsePhoton, placeQuery, readHomepageLinks, type PlaceArea, type PlaceHit } from './places';
+import { fillContacts, leadCount, nicheTag, parseNominatim, parseOverpass, parsePhoton, placeQuery, readHomepageLinks, type PlaceArea, type PlaceHit } from './places';
 
 export { nicheTag };
 
@@ -65,6 +65,37 @@ async function nominatimPlaces(name: string, city: string, limit: number): Promi
   return parseNominatim(await response.json(), city, limit);
 }
 
+function osmCode(type: string): string {
+  const value = type.toLowerCase();
+  if (value === 'n' || value === 'node') return 'N';
+  if (value === 'w' || value === 'way') return 'W';
+  if (value === 'r' || value === 'relation') return 'R';
+  return '';
+}
+
+async function attachOsmTags(hits: PlaceHit[]): Promise<PlaceHit[]> {
+  const ids = hits.flatMap((hit) => {
+    const code = osmCode(hit.osmType ?? '');
+    return code && hit.osmId ? [`${code}${hit.osmId}`] : [];
+  });
+  if (ids.length === 0) return hits;
+  try {
+    const response = await fetch(`https://nominatim.openstreetmap.org/lookup?osm_ids=${ids.join(',')}&format=jsonv2&extratags=1`, {
+      headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) return hits;
+    const rows = await response.json() as { osm_type?: string; osm_id?: number | string; extratags?: Record<string, unknown> }[];
+    const byId = new Map(rows.map((row) => [`${osmCode(String(row.osm_type ?? ''))}${row.osm_id}`, row.extratags ?? {}]));
+    return hits.map((hit) => {
+      const tags = byId.get(`${osmCode(hit.osmType ?? '')}${hit.osmId}`);
+      return tags ? fillContacts(hit, tags) : hit;
+    });
+  } catch {
+    return hits;
+  }
+}
+
 async function readHomepage(hit: PlaceHit): Promise<PlaceHit> {
   if ((hit.email && hit.instagram && hit.linkedin) || !hit.website) return hit;
   try {
@@ -124,5 +155,6 @@ export async function findPlaces(niche: string, city: string, area: PlaceArea, l
       else throw error;
     }
   }
-  return Promise.all(chosen.slice(0, count).map((hit) => readHomepage(hit)));
+  const tagged = await attachOsmTags(chosen.slice(0, count));
+  return Promise.all(tagged.map((hit) => readHomepage(hit)));
 }

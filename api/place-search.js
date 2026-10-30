@@ -101,6 +101,17 @@ function siteOf(value) {
     return "";
   }
 }
+function fillContacts(hit, tags) {
+  const extra = contactFields(tags);
+  return {
+    ...hit,
+    phone: hit.phone || extra.phone,
+    email: hit.email || extra.email,
+    instagram: hit.instagram || extra.instagram,
+    linkedin: hit.linkedin || extra.linkedin,
+    website: hit.website || extra.website
+  };
+}
 function contactFields(tags) {
   return {
     phone: text(tags.phone) || text(tags["contact:phone"]) || text(tags["contact:mobile"]),
@@ -197,7 +208,9 @@ function parsePhoton(data, fallbackCity, limit = 10) {
       address: [text(props.street), text(props.housenumber)].filter(Boolean).join(", "),
       ...contactFields(props),
       lat,
-      lng
+      lng,
+      osmType: text(props.osm_type).slice(0, 1).toUpperCase(),
+      osmId: typeof props.osm_id === "number" ? String(props.osm_id) : text(props.osm_id)
     });
   }
   return take(hits, fallbackCity, limit);
@@ -262,6 +275,35 @@ async function nominatimPlaces(name, city, limit) {
   if (!response.ok) throw new Error("A busca de empresas n\xE3o respondeu.");
   return parseNominatim(await response.json(), city, limit);
 }
+function osmCode(type) {
+  const value = type.toLowerCase();
+  if (value === "n" || value === "node") return "N";
+  if (value === "w" || value === "way") return "W";
+  if (value === "r" || value === "relation") return "R";
+  return "";
+}
+async function attachOsmTags(hits) {
+  const ids = hits.flatMap((hit) => {
+    const code = osmCode(hit.osmType ?? "");
+    return code && hit.osmId ? [`${code}${hit.osmId}`] : [];
+  });
+  if (ids.length === 0) return hits;
+  try {
+    const response = await fetch(`https://nominatim.openstreetmap.org/lookup?osm_ids=${ids.join(",")}&format=jsonv2&extratags=1`, {
+      headers: { Accept: "application/json", "User-Agent": USER_AGENT },
+      signal: AbortSignal.timeout(8e3)
+    });
+    if (!response.ok) return hits;
+    const rows = await response.json();
+    const byId = new Map(rows.map((row) => [`${osmCode(String(row.osm_type ?? ""))}${row.osm_id}`, row.extratags ?? {}]));
+    return hits.map((hit) => {
+      const tags = byId.get(`${osmCode(hit.osmType ?? "")}${hit.osmId}`);
+      return tags ? fillContacts(hit, tags) : hit;
+    });
+  } catch {
+    return hits;
+  }
+}
 async function readHomepage(hit) {
   if (hit.email && hit.instagram && hit.linkedin || !hit.website) return hit;
   try {
@@ -319,7 +361,8 @@ async function findPlaces(niche, city, area, limit = 10) {
       else throw error;
     }
   }
-  return Promise.all(chosen.slice(0, count).map((hit) => readHomepage(hit)));
+  const tagged = await attachOsmTags(chosen.slice(0, count));
+  return Promise.all(tagged.map((hit) => readHomepage(hit)));
 }
 export {
   findPlaces,

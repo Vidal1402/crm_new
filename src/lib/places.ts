@@ -9,6 +9,8 @@ export type PlaceHit = {
   website: string;
   lat: number;
   lng: number;
+  osmType?: string;
+  osmId?: string;
 };
 
 export type PlaceArea = {
@@ -151,6 +153,18 @@ function siteOf(value: string): string {
   }
 }
 
+export function fillContacts(hit: PlaceHit, tags: Record<string, unknown>): PlaceHit {
+  const extra = contactFields(tags);
+  return {
+    ...hit,
+    phone: hit.phone || extra.phone,
+    email: hit.email || extra.email,
+    instagram: hit.instagram || extra.instagram,
+    linkedin: hit.linkedin || extra.linkedin,
+    website: hit.website || extra.website,
+  };
+}
+
 function contactFields(tags: Record<string, unknown>) {
   return {
     phone: text(tags.phone) || text(tags['contact:phone']) || text(tags['contact:mobile']),
@@ -268,6 +282,8 @@ export function parsePhoton(data: unknown, fallbackCity: string, limit: unknown 
       ...contactFields(props),
       lat,
       lng,
+      osmType: text(props.osm_type).slice(0, 1).toUpperCase(),
+      osmId: typeof props.osm_id === 'number' ? String(props.osm_id) : text(props.osm_id),
     });
   }
   return take(hits, fallbackCity, limit);

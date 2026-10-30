@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { CITY_RINGS } from '../src/lib/cityRings.ts';
-import { leadCount, nicheTag, parseNominatim, parseOverpass, parsePhoton, placeQuery, readHomepageLinks, ringBox } from '../src/lib/places.ts';
+import { fillContacts, leadCount, nicheTag, parseNominatim, parseOverpass, parsePhoton, placeQuery, readHomepageLinks, ringBox, type PlaceHit } from '../src/lib/places.ts';
 
 test('a niche query asks for the category inside the city', () => {
   const rio = ringBox(CITY_RINGS['rio de janeiro']);
@@ -67,6 +67,25 @@ test('parseOverpass respects the requested limit and reads contact links', () =>
   assert.equal(places[1].email, '');
   assert.equal(places[1].instagram, '');
   assert.equal(places[1].linkedin, '');
+});
+
+test('fillContacts keeps a phone and website that the map index omitted', () => {
+  const bare = {
+    name: 'Confeitaria Colombo',
+    city: 'Rio de Janeiro',
+    address: 'Rua Gonçalves Dias, 32',
+    phone: '',
+    email: '',
+    instagram: '',
+    linkedin: '',
+    website: '',
+    lat: -22.9,
+    lng: -43.17,
+  } satisfies PlaceHit;
+  const filled = fillContacts(bare, { phone: '+55 21 2505 1500', 'contact:website': 'www.confeitariacolombo.com.br' });
+  assert.equal(filled.phone, '+55 21 2505 1500');
+  assert.equal(filled.website, 'https://www.confeitariacolombo.com.br/');
+  assert.equal(filled.email, '');
 });
 
 test('readHomepageLinks keeps only the contact links on the page', () => {
