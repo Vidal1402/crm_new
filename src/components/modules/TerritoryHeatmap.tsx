@@ -121,7 +121,11 @@ function syncStains(map: MapType, zones: HeatZone[]) {
   for (const marker of stains.get(map) ?? []) marker.remove();
   stains.set(
     map,
-    zones.map((z) => new Marker({ element: stain(z.v), anchor: 'center' }).setLngLat([z.lng, z.lat]).addTo(map)),
+    zones.map((z) => {
+      const marker = new Marker({ element: stain(z.v), anchor: 'center' }).setLngLat([z.lng, z.lat]).addTo(map);
+      marker.getElement().style.zIndex = '1';
+      return marker;
+    }),
   );
 }
 
@@ -172,6 +176,41 @@ function addHeat(map: MapType, zones: HeatZone[]) {
 }
 
 const RIO: [number, number] = [-43.1729, -22.9068];
+const RIO_RING: [number, number][] = [[-43.7963,-22.9192],[-43.7454,-22.9461],[-43.6898,-22.992],[-43.6743,-22.9805],[-43.6532,-23.0028],[-43.6231,-23.008],[-43.5996,-23.0229],[-43.6196,-23.0329],[-43.6638,-23.0411],[-43.6678,-23.0532],[-43.589,-23.0534],[-43.5661,-23.0625],[-43.5724,-23.0732],[-43.5532,-23.0764],[-43.5491,-23.0621],[-43.5347,-23.0505],[-43.5083,-23.0475],[-43.4985,-23.0372],[-43.4816,-23.0325],[-43.4684,-23.0379],[-43.4658,-23.0293],[-43.4386,-23.021],[-43.3591,-23.011],[-43.2865,-23.0164],[-43.2869,-23.0098],[-43.2755,-23.0027],[-43.2408,-23.0004],[-43.2251,-22.9883],[-43.1897,-22.9907],[-43.1835,-22.9858],[-43.1891,-22.9829],[-43.1836,-22.973],[-43.1594,-22.9644],[-43.1643,-22.9544],[-43.1502,-22.9508],[-43.156,-22.9436],[-43.1521,-22.9386],[-43.1697,-22.9529],[-43.1805,-22.948],[-43.1687,-22.9388],[-43.1675,-22.9191],[-43.1727,-22.9167],[-43.1617,-22.9168],[-43.1619,-22.9047],[-43.1734,-22.9021],[-43.179,-22.8923],[-43.2108,-22.8976],[-43.2159,-22.8863],[-43.2013,-22.8715],[-43.2099,-22.867],[-43.217,-22.8759],[-43.2267,-22.8741],[-43.2433,-22.8422],[-43.2649,-22.8265],[-43.2728,-22.8098],[-43.2902,-22.8104],[-43.3082,-22.7999],[-43.37,-22.8053],[-43.4149,-22.8212],[-43.427,-22.8369],[-43.4581,-22.849],[-43.4824,-22.8304],[-43.4901,-22.8155],[-43.5594,-22.8289],[-43.5885,-22.8387],[-43.5929,-22.8605],[-43.6235,-22.8628],[-43.6441,-22.8557],[-43.6651,-22.8652],[-43.7115,-22.8668],[-43.7343,-22.8783],[-43.7482,-22.8779],[-43.7516,-22.8887],[-43.7948,-22.9035],[-43.7907,-22.9143],[-43.7962,-22.9189],[-43.7963,-22.9192]];
+
+function attachRioVeil(map: MapType) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.style.position = 'absolute';
+  svg.style.inset = '0';
+  svg.style.width = '100%';
+  svg.style.height = '100%';
+  svg.style.zIndex = '40';
+  svg.style.pointerEvents = 'none';
+  svg.style.overflow = 'visible';
+  const shape = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+  shape.setAttribute('fill', 'rgba(220,38,38,0.22)');
+  shape.setAttribute('stroke', '#DC2626');
+  shape.setAttribute('stroke-width', '2.5');
+  shape.setAttribute('stroke-dasharray', '8 6');
+  shape.setAttribute('stroke-linejoin', 'round');
+  svg.appendChild(shape);
+  const draw = () => {
+    const box = map.getContainer();
+    const width = box.clientWidth || 1;
+    const height = box.clientHeight || 1;
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    shape.setAttribute('points', RIO_RING.map(([lng, lat]) => {
+      const point = map.project([lng, lat]);
+      return `${point.x.toFixed(1)},${point.y.toFixed(1)}`;
+    }).join(' '));
+    box.appendChild(svg);
+  };
+  map.on('move', draw);
+  map.on('resize', draw);
+  map.on('load', draw);
+  draw();
+}
 
 function paintHeat(map: MapType, zones: HeatZone[]) {
   syncStains(map, zones);
@@ -185,7 +224,7 @@ function paintHeat(map: MapType, zones: HeatZone[]) {
   labelSource.setData(labels(zones));
 }
 
-function createMap(el: HTMLDivElement, opts: { center: [number, number]; zoom: number; pitch: number; bearing: number }, getZones: () => HeatZone[]) {
+function createMap(el: HTMLDivElement, opts: { center: [number, number]; zoom: number; pitch: number; bearing: number }, getZones: () => HeatZone[], veil = false) {
   const map = new MapLibreMap({
     container: el,
     style: STYLE,
@@ -197,6 +236,7 @@ function createMap(el: HTMLDivElement, opts: { center: [number, number]; zoom: n
   });
   map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
   syncStains(map, getZones());
+  if (veil) attachRioVeil(map);
   map.on('load', () => {
     map.resize();
     paintHeat(map, getZones());
@@ -235,7 +275,7 @@ export function TerritoryHeatmap({
     const b = streetEl.current;
     if (!a || !b) return;
 
-    const overview = createMap(a, { center: RIO, zoom: 11, pitch: 20, bearing: 0 }, () => zonesRef.current);
+    const overview = createMap(a, { center: RIO, zoom: 11, pitch: 20, bearing: 0 }, () => zonesRef.current, true);
     const street = createMap(b, { center: RIO, zoom: 14, pitch: 50, bearing: 18 }, () => zonesRef.current);
     overviewRef.current = overview;
     streetRef.current = street;
