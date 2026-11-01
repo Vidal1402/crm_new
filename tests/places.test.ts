@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { CITY_RINGS } from '../src/lib/cityRings.ts';
-import { fillContacts, leadCount, nicheCnae, nicheTag, parseNominatim, parseOverpass, parsePhoton, parseRegistry, placeQuery, readHomepageLinks, ringBox, type PlaceHit } from '../src/lib/places.ts';
+import { fillContacts, leadCount, nicheCnae, nicheTag, parseGoogle, parseNominatim, parseOverpass, parsePhoton, parseRegistry, placeQuery, readHomepageLinks, ringBox, type PlaceHit } from '../src/lib/places.ts';
 
 test('a niche query asks for the category inside the city', () => {
   const rio = ringBox(CITY_RINGS['rio de janeiro']);
@@ -161,4 +161,22 @@ test('parseRegistry keeps the active company phone and drops partners', () => {
   assert.equal(places[0].instagram, '');
   assert.equal(places[0].address, 'RUA DO TESTE 10, CENTRO');
   assert.equal(JSON.stringify(places).includes('não pode aparecer'), false);
+});
+
+test('parseGoogle keeps the phone and website', () => {
+  const places = parseGoogle({
+    places: [{
+      displayName: { text: 'Studio Teste' },
+      formattedAddress: 'Rua do Teste, 10, Rio de Janeiro',
+      internationalPhoneNumber: '+55 21 99999-0000',
+      websiteUri: 'https://studio.example',
+      location: { latitude: -22.9, longitude: -43.2 },
+    }, {
+      displayName: { text: '' },
+    }],
+  }, 'Rio de Janeiro', { lat: -22.9, lng: -43.2 }, 5);
+  assert.equal(places.length, 1);
+  assert.equal(places[0].phone, '+55 21 99999-0000');
+  assert.equal(places[0].website, 'https://studio.example');
+  assert.equal(places[0].email, '');
 });

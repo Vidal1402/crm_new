@@ -1,4 +1,4 @@
-import { findPlaces, nicheCnae, nicheTag, registryPlaces } from './place-search.js';
+import { findPlaces, googlePlaces, nicheCnae, nicheTag, registryPlaces } from './place-search.js';
 
 type PlaceArea = {
   lat: number;
@@ -48,6 +48,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   }
   const area: PlaceArea = { lat, lng, south: num(body.south), west: num(body.west), north: num(body.north), east: num(body.east) };
   try {
+    const googleKey = process.env.GOOGLE_PLACES_API_KEY?.trim();
+    if (googleKey) {
+      const listed = await googlePlaces(niche, city, area, body.limit, googleKey);
+      if (listed.length > 0) return res.status(200).json({ places: listed, knownNiche: true, source: 'google' });
+    }
     const registered = await registryPlaces(niche, city, area, body.limit);
     if (registered.length > 0) return res.status(200).json({ places: registered, knownNiche: true, source: 'receita' });
     const places = await findPlaces(niche, city, area, body.limit);

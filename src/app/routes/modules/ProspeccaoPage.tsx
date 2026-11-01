@@ -81,7 +81,7 @@ export default function ProspeccaoPage() {
       const places = data.places ?? [];
       setHits(places);
       setPhones(Object.fromEntries(places.map((hit) => [hitKey(hit), hit.phone])));
-      setSearchSource(data.source === 'receita' ? 'Receita Federal' : 'OpenStreetMap');
+      setSearchSource(data.source === 'google' ? 'Google' : data.source === 'receita' ? 'Receita Federal' : 'OpenStreetMap');
       if (places.length === 0) {
         setSearchError(data.knownNiche
           ? 'Nenhuma empresa desse nicho nessa cidade.'
@@ -167,7 +167,11 @@ export default function ProspeccaoPage() {
             {searching ? 'Buscando' : 'Buscar'}
           </button>
         </form>
-        <p className="mt-2 text-[12px] text-[#6B7280]">Telefone e e-mail vêm do cadastro público da empresa. Instagram e LinkedIn não estão nessa base.</p>
+        <p className="mt-2 text-[12px] text-[#6B7280]">
+          {searchSource === 'Google'
+            ? 'Telefone e site vêm do Google. E-mail, Instagram e LinkedIn entram quando estão na página da empresa.'
+            : 'Telefone e e-mail vêm do cadastro público da empresa. Instagram e LinkedIn não estão nessa base.'}
+        </p>
         {searchError ? <p className="mt-3 text-sm text-[#DC2626]">{searchError}</p> : null}
         <ul className="mt-3 divide-y divide-[#F3F4F6] text-sm">
           {hits.map((hit) => {

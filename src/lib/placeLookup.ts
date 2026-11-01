@@ -1,4 +1,4 @@
-import { fillContacts, leadCount, nicheCnae, nicheKey, nicheTag, parseNominatim, parseOverpass, parsePhoton, parseRegistry, placeQuery, readHomepageLinks, type PlaceArea, type PlaceHit } from './places';
+import { fillContacts, leadCount, nicheCnae, nicheKey, nicheTag, parseGoogle, parseNominatim, parseOverpass, parsePhoton, parseRegistry, placeQuery, readHomepageLinks, type PlaceArea, type PlaceHit } from './places';
 
 export { nicheCnae, nicheTag };
 
@@ -158,6 +158,37 @@ export async function registryPlaces(niche: string, city: string, area: PlaceAre
   });
   if (!response.ok) return [];
   return parseRegistry(await response.json(), city, cnae, { lat: area.lat, lng: area.lng }, count);
+}
+
+export async function googlePlaces(niche: string, city: string, area: PlaceArea, limit: unknown, apiKey: string): Promise<PlaceHit[]> {
+  const key = apiKey.trim();
+  const query = niche.trim();
+  if (!key || query.length < 3 || !city.trim() || !Number.isFinite(area.lat) || !Number.isFinite(area.lng)) return [];
+  const count = Math.min(leadCount(limit), 20);
+  const response = await fetch('https://places.googleapis.com/v1/places:searchText', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': key,
+      'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.internationalPhoneNumber,places.websiteUri,places.location',
+    },
+    body: JSON.stringify({
+      textQuery: `${query} em ${city.trim()}`,
+      languageCode: 'pt-BR',
+      regionCode: 'BR',
+      pageSize: count,
+      locationBias: {
+        circle: {
+          center: { latitude: area.lat, longitude: area.lng },
+          radius: 15000,
+        },
+      },
+    }),
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!response.ok) return [];
+  const places = parseGoogle(await response.json(), city, { lat: area.lat, lng: area.lng }, count);
+  return Promise.all(places.map((hit) => readHomepage(hit)));
 }
 
 export async function findPlaces(niche: string, city: string, area: PlaceArea, limit: unknown = 10): Promise<PlaceHit[]> {

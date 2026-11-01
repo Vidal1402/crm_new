@@ -62,6 +62,32 @@ function parseRegistry(data, fallbackCity, cnae, point, limit = 10) {
   hits.sort((a, b) => Number(Boolean(b.phone)) - Number(Boolean(a.phone)) || Number(Boolean(b.email)) - Number(Boolean(a.email)));
   return hits.slice(0, leadCount(limit));
 }
+function parseGoogle(data, fallbackCity, point, limit = 10) {
+  const rows = data?.places;
+  if (!Array.isArray(rows)) return [];
+  const hits = [];
+  for (const item of rows) {
+    const row = item;
+    const name = text(row.displayName?.text);
+    const lat = coord(row.location?.latitude) ?? point.lat;
+    const lng = coord(row.location?.longitude) ?? point.lng;
+    if (!name || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    const phone = text(row.internationalPhoneNumber) || text(row.nationalPhoneNumber);
+    hits.push({
+      name,
+      city: fallbackCity.trim(),
+      address: text(row.formattedAddress),
+      phone,
+      email: "",
+      instagram: "",
+      linkedin: "",
+      website: text(row.websiteUri),
+      lat,
+      lng
+    });
+  }
+  return hits.slice(0, Math.min(leadCount(limit), 20));
+}
 function areaClause(area) {
   if (!Number.isFinite(area.lat) || !Number.isFinite(area.lng)) return null;
   if (area.lat < -90 || area.lat > 90 || area.lng < -180 || area.lng > 180) return null;
@@ -409,6 +435,36 @@ async function registryPlaces(niche, city, area, limit = 10) {
   if (!response.ok) return [];
   return parseRegistry(await response.json(), city, cnae, { lat: area.lat, lng: area.lng }, count);
 }
+async function googlePlaces(niche, city, area, limit, apiKey) {
+  const key = apiKey.trim();
+  const query = niche.trim();
+  if (!key || query.length < 3 || !city.trim() || !Number.isFinite(area.lat) || !Number.isFinite(area.lng)) return [];
+  const count = Math.min(leadCount(limit), 20);
+  const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": key,
+      "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.internationalPhoneNumber,places.websiteUri,places.location"
+    },
+    body: JSON.stringify({
+      textQuery: `${query} em ${city.trim()}`,
+      languageCode: "pt-BR",
+      regionCode: "BR",
+      pageSize: count,
+      locationBias: {
+        circle: {
+          center: { latitude: area.lat, longitude: area.lng },
+          radius: 15e3
+        }
+      }
+    }),
+    signal: AbortSignal.timeout(8e3)
+  });
+  if (!response.ok) return [];
+  const places = parseGoogle(await response.json(), city, { lat: area.lat, lng: area.lng }, count);
+  return Promise.all(places.map((hit) => readHomepage(hit)));
+}
 async function findPlaces(niche, city, area, limit = 10) {
   const count = leadCount(limit);
   const query = placeQuery(niche, area, count);
@@ -444,6 +500,7 @@ async function findPlaces(niche, city, area, limit = 10) {
 }
 export {
   findPlaces,
+  googlePlaces,
   nicheCnae,
   nicheTag,
   registryPlaces

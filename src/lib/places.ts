@@ -98,6 +98,45 @@ export function parseRegistry(
   return hits.slice(0, leadCount(limit));
 }
 
+export function parseGoogle(
+  data: unknown,
+  fallbackCity: string,
+  point: { lat: number; lng: number },
+  limit: unknown = 10,
+): PlaceHit[] {
+  const rows = (data as { places?: unknown })?.places;
+  if (!Array.isArray(rows)) return [];
+  const hits: PlaceHit[] = [];
+  for (const item of rows) {
+    const row = item as {
+      displayName?: { text?: unknown };
+      formattedAddress?: unknown;
+      nationalPhoneNumber?: unknown;
+      internationalPhoneNumber?: unknown;
+      websiteUri?: unknown;
+      location?: { latitude?: unknown; longitude?: unknown };
+    };
+    const name = text(row.displayName?.text);
+    const lat = coord(row.location?.latitude) ?? point.lat;
+    const lng = coord(row.location?.longitude) ?? point.lng;
+    if (!name || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    const phone = text(row.internationalPhoneNumber) || text(row.nationalPhoneNumber);
+    hits.push({
+      name,
+      city: fallbackCity.trim(),
+      address: text(row.formattedAddress),
+      phone,
+      email: '',
+      instagram: '',
+      linkedin: '',
+      website: text(row.websiteUri),
+      lat,
+      lng,
+    });
+  }
+  return hits.slice(0, Math.min(leadCount(limit), 20));
+}
+
 export function ringBox(ring: [number, number][]): PlaceArea | null {
   if (ring.length < 3) return null;
   let west = Infinity;
