@@ -111,19 +111,7 @@ function attachCityVeil(map: MapType, getZones: () => HeatZone[]) {
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     svg.replaceChildren();
     for (const zone of getZones()) {
-      if (!zone.ring || zone.ring.length < 3) {
-        const point = map.project([zone.lng, zone.lat]);
-        const mark = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        mark.setAttribute('cx', point.x.toFixed(1));
-        mark.setAttribute('cy', point.y.toFixed(1));
-        mark.setAttribute('r', '70');
-        mark.setAttribute('fill', rgba(zone.color, 0.22));
-        mark.setAttribute('stroke', zone.color);
-        mark.setAttribute('stroke-width', '2.5');
-        mark.setAttribute('stroke-dasharray', '8 6');
-        svg.appendChild(mark);
-        continue;
-      }
+      if (!zone.ring || zone.ring.length < 3) continue;
       const shape = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
       shape.setAttribute('fill', rgba(zone.color, 0.22));
       shape.setAttribute('stroke', zone.color);

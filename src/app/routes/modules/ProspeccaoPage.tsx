@@ -60,6 +60,9 @@ export default function ProspeccaoPage() {
     }
     setSearching(true);
     setSearchError('');
+    void loadCityRing(city).then((ring) => {
+      if (ring) setExtraRings((current) => ({ ...current, [cityKey(city)]: ring }));
+    });
     try {
       const point = knownCity(city) ?? await geocodeCity(city);
       if (!point) {
