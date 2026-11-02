@@ -5,8 +5,17 @@ function cityKey(city) {
 
 // src/lib/cityOutline.ts
 function decimate(ring) {
-  const step = Math.max(1, Math.ceil(ring.length / 80));
-  const out = ring.filter((_, index) => index % step === 0).map(([lng, lat]) => [Number(lng.toFixed(4)), Number(lat.toFixed(4))]);
+  const round = (point) => [Number(point[0].toFixed(5)), Number(point[1].toFixed(5))];
+  const out = [round(ring[0])];
+  let last = ring[0];
+  for (let index = 1; index < ring.length; index += 1) {
+    const point = ring[index];
+    const chord = Math.hypot(point[0] - last[0], point[1] - last[1]);
+    if (index === ring.length - 1 || chord >= 3e-3) {
+      out.push(round(point));
+      last = point;
+    }
+  }
   if (out.length > 1 && (out[0][0] !== out.at(-1)?.[0] || out[0][1] !== out.at(-1)?.[1])) out.push(out[0]);
   return out;
 }
@@ -37,18 +46,19 @@ async function cityOutline(city) {
   search.searchParams.set("q", `${city.trim()}, Brasil`);
   search.searchParams.set("format", "jsonv2");
   search.searchParams.set("polygon_geojson", "1");
-  search.searchParams.set("polygon_threshold", "0.01");
+  search.searchParams.set("polygon_threshold", "0.001");
   search.searchParams.set("limit", "5");
   search.searchParams.set("addressdetails", "1");
   search.searchParams.set("countrycodes", "br");
   search.searchParams.set("featuretype", "city");
   const response = await fetch(search, {
     headers: { Accept: "application/json", "User-Agent": USER_AGENT },
-    signal: AbortSignal.timeout(8e3)
+    signal: AbortSignal.timeout(12e3)
   });
   if (!response.ok) throw new Error("nominatim");
   const rows = await response.json();
-  const hit = rows.find((row) => (row.addresstype === "municipality" || row.addresstype === "city") && cityKey(row.name ?? "") === key && row.geojson);
+  const matches = rows.filter((row) => (row.addresstype === "municipality" || row.addresstype === "city") && row.category !== "place" && cityKey(row.name ?? "") === key && row.geojson);
+  const hit = matches.find((row) => row.addresstype === "municipality") ?? matches[0];
   return hit ? outerRing(hit.geojson) : null;
 }
 export {

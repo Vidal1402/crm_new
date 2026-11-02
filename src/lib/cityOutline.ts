@@ -21,8 +21,17 @@ export function matchMunicipalities(rows: Municipality[], city: string): Municip
 }
 
 function decimate(ring: [number, number][]): [number, number][] {
-  const step = Math.max(1, Math.ceil(ring.length / 80));
-  const out = ring.filter((_, index) => index % step === 0).map(([lng, lat]) => [Number(lng.toFixed(4)), Number(lat.toFixed(4))] as [number, number]);
+  const round = (point: [number, number]): [number, number] => [Number(point[0].toFixed(5)), Number(point[1].toFixed(5))];
+  const out: [number, number][] = [round(ring[0])];
+  let last = ring[0];
+  for (let index = 1; index < ring.length; index += 1) {
+    const point = ring[index];
+    const chord = Math.hypot(point[0] - last[0], point[1] - last[1]);
+    if (index === ring.length - 1 || chord >= 0.003) {
+      out.push(round(point));
+      last = point;
+    }
+  }
   if (out.length > 1 && (out[0][0] !== out.at(-1)?.[0] || out[0][1] !== out.at(-1)?.[1])) out.push(out[0]);
   return out;
 }

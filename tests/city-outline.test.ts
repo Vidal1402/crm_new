@@ -23,6 +23,15 @@ test('a municipality outline keeps the city polygon', () => {
   assert.ok(Math.max(...lngs) - Math.min(...lngs) < 1);
 });
 
+test('a municipality outline keeps a notch instead of cutting into the neighbor', () => {
+  const coordinates: [number, number][] = [[0, 0]];
+  for (let step = 1; step <= 40; step += 1) coordinates.push([step * 0.001, 0]);
+  coordinates.push([0.02, 0.05], [0.021, 0.05], [0.021, 0]);
+  for (let step = 22; step <= 80; step += 1) coordinates.push([step * 0.001, 0]);
+  coordinates.push([0, 0]);
+  const ring = outerRing({ type: 'Polygon', coordinates: [coordinates] });
+  assert.ok(ring?.some((point) => point[1] > 0.04));
+});
 test('an exact city name matches one municipality and a state name matches none', () => {
   assert.deepEqual(matchMunicipalities(rows, 'São Paulo').map((row) => row.id), [3550308]);
   assert.deepEqual(matchMunicipalities(rows, 'Belo Horizonte').map((row) => row.uf), ['MG']);
