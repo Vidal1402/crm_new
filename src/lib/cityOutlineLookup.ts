@@ -1,29 +1,11 @@
 import { cityKey } from './geocode';
+import { MUNICIPIOS } from './municipios';
 import { matchMunicipalities, outerRing, type Municipality } from './cityOutline';
 
 const USER_AGENT = 'CRM-Espelho/1.0 (prospecting map; https://crm-new-rust.vercel.app)';
-const LIST = 'https://servicodados.ibge.gov.br/api/v1/localidades/municipios';
 
-let catalog: Promise<Municipality[]> | null = null;
-
-function municipalities(): Promise<Municipality[]> {
-  if (!catalog) {
-    catalog = fetch(LIST, {
-      headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
-      signal: AbortSignal.timeout(12000),
-    }).then(async (response) => {
-      if (!response.ok) throw new Error('ibge');
-      const rows = await response.json() as { id?: number; nome?: string; microrregiao?: { mesorregiao?: { UF?: { sigla?: string } } } }[];
-      return rows.flatMap((row) => {
-        const uf = row.microrregiao?.mesorregiao?.UF?.sigla;
-        return row.id && row.nome && uf ? [{ id: row.id, nome: row.nome, uf }] : [];
-      });
-    }).catch((error) => {
-      catalog = null;
-      throw error;
-    });
-  }
-  return catalog;
+function municipalities(): Municipality[] {
+  return MUNICIPIOS.map(([id, nome, uf]) => ({ id, nome, uf }));
 }
 
 async function preferredState(city: string): Promise<string> {
@@ -46,7 +28,7 @@ async function preferredState(city: string): Promise<string> {
 }
 
 export async function cityOutline(city: string): Promise<[number, number][] | null> {
-  const matches = matchMunicipalities(await municipalities(), city);
+  const matches = matchMunicipalities(municipalities(), city);
   let municipality = matches.length === 1 ? matches[0] : null;
   if (!municipality && matches.length > 1) {
     const uf = await preferredState(city);

@@ -51,7 +51,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (city.length < 2) return res.status(400).json({ ring: null });
     try {
       return res.status(200).json({ ring: await cityOutline(city) });
-    } catch {
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : 'outline');
       return res.status(502).json({ ring: null });
     }
   }
