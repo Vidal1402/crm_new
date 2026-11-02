@@ -106,6 +106,7 @@ export const CONTACT_SOURCE_LABEL: Record<string, string> = {
   instagram: 'Instagram',
   import: 'Importação (Excel)',
   manual: 'Cadastro manual',
+  prospeccao: 'Prospecção',
 };
 
 // ---- Campos customizáveis (definições + valores por deal) ----

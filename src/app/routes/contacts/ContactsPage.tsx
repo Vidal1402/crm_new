@@ -23,7 +23,7 @@ import { LoadErrorBanner } from '@/components/LoadErrorBanner';
 
 const PAGE_SIZE = 25;
 
-const SOURCE_OPTIONS = ['whatsapp', 'instagram', 'import', 'manual'];
+const SOURCE_OPTIONS = ['whatsapp', 'instagram', 'import', 'manual', 'prospeccao'];
 
 const fmtDate = (s: string | null | undefined) =>
   s ? new Date(s).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
@@ -373,7 +373,7 @@ export default function ContactsPage() {
                       {c.phone || <span className="opacity-40">—</span>}
                     </td>
                     <td className="p-3 text-[var(--color-text-secondary)]">
-                      {c.source ? (
+                      {c.source && c.source !== 'prospeccao' ? (
                         <span className="inline-flex rounded-full bg-[var(--color-bg-muted)] px-2 py-0.5 text-xs">
                           {CONTACT_SOURCE_LABEL[c.source] ?? c.source}
                         </span>
@@ -382,7 +382,9 @@ export default function ContactsPage() {
                       )}
                     </td>
                     <td className="p-3 text-[var(--color-text-secondary)]">
-                      {c.traffic_type ? (
+                      {c.source === 'prospeccao' ? (
+                        <span className="text-xs">Prospecção</span>
+                      ) : c.traffic_type ? (
                         <span className="text-xs">{TRAFFIC_LABEL[c.traffic_type] ?? c.traffic_type}</span>
                       ) : (
                         <span className="opacity-40">—</span>

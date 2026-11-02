@@ -192,7 +192,8 @@ export default function ProspeccaoPage() {
           {hits.map((hit) => {
             const key = hitKey(hit);
             const draft = phones[key] ?? '';
-            const ready = normalizePhone(draft).ok;
+            const parsed = normalizePhone(draft);
+            const marked = saved[key] === true || (parsed.ok && feed.contacts.some((item) => item.phone === parsed.e164));
             return (
               <li key={key} className="grid items-start gap-3 py-3 md:grid-cols-[minmax(160px,1.2fr)_minmax(140px,1fr)_minmax(140px,1fr)_minmax(120px,1fr)_minmax(120px,1fr)_auto]">
                 <div className="min-w-0">
@@ -223,9 +224,8 @@ export default function ProspeccaoPage() {
                 </div>
                 <button
                   type="button"
-                  disabled={!ready || saved[key] !== undefined}
+                  disabled={!parsed.ok || saved[key] === false || marked}
                   onClick={() => {
-                    const parsed = normalizePhone(draft);
                     if (!parsed.ok) return;
                     setSaved((current) => ({ ...current, [key]: false }));
                     void feed.addContact({
@@ -239,6 +239,7 @@ export default function ProspeccaoPage() {
                       instagram: hit.instagram,
                       linkedin: hit.linkedin,
                       list: list === 'Todas' ? newList.trim() : list,
+                      source: 'prospeccao',
                     }).then((ok) => {
                       setSaved((current) => {
                         const next = { ...current };
@@ -246,11 +247,17 @@ export default function ProspeccaoPage() {
                         else delete next[key];
                         return next;
                       });
+                    }).catch(() => {
+                      setSaved((current) => {
+                        const next = { ...current };
+                        delete next[key];
+                        return next;
+                      });
                     });
                   }}
-                  className="h-10 rounded-lg bg-[#111827] px-3 text-sm font-medium text-white disabled:opacity-60"
+                  className={cn('h-10 rounded-lg px-3 text-sm font-medium text-white disabled:opacity-60', marked ? 'bg-[#16A34A]' : 'bg-[#111827]')}
                 >
-                  {saved[key] === true ? 'Gravado' : saved[key] === false ? 'Gravando' : 'Gravar'}
+                  {saved[key] === false ? 'Gravando' : marked ? 'Gravado' : 'Gravar'}
                 </button>
               </li>
             );

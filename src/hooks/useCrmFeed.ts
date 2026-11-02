@@ -205,7 +205,7 @@ export function useCrmFeed() {
     await reload();
   }, [reload]);
 
-  const addContact = useCallback(async (input: { name: string; phone: string; email?: string; city?: string; address?: string; list?: string; lat?: number; lng?: number; instagram?: string; linkedin?: string }) => {
+  const addContact = useCallback(async (input: { name: string; phone: string; email?: string; city?: string; address?: string; list?: string; lat?: number; lng?: number; instagram?: string; linkedin?: string; source?: string }) => {
     const supabase = getSupabase();
     const point = Number.isFinite(input.lat) && Number.isFinite(input.lng)
       ? { lat: input.lat as number, lng: input.lng as number }
@@ -215,6 +215,7 @@ export function useCrmFeed() {
       phone: input.phone,
       email: input.email || null,
       kind: 'lead',
+      ...(input.source ? { source: input.source } : {}),
       custom_fields: {
         city: input.city || '',
         address: input.address || '',
