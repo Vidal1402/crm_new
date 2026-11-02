@@ -17,7 +17,7 @@ export async function loadCityRing(city: string): Promise<[number, number][] | n
   if (fetched.has(key)) return fetched.get(key) ?? null;
   const running = pending.get(key);
   if (running) return running;
-  const task = fetch(`/api/city-ring?city=${encodeURIComponent(city.trim())}`)
+  const task = fetch(`/api/places?city=${encodeURIComponent(city.trim())}`)
     .then(async (response) => {
       if (!response.ok) return null;
       const data = await response.json() as { ring?: [number, number][] };
