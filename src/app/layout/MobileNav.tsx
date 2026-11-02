@@ -1,9 +1,10 @@
 import { NavLink } from 'react-router-dom';
-import { X } from 'lucide-react';
+import { Lock, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { NAV_ITEMS, PLATFORM_NAV_ITEMS, type NavItem } from './nav-config';
 import { useAppUser } from '@/app/providers/AppUserProvider';
 import { TractionLogo } from '@/components/brand/TractionLogo';
+import { useWhatsappConnected } from '@/hooks/useWhatsappConnected';
 
 interface MobileNavProps {
   open: boolean;
@@ -13,6 +14,7 @@ interface MobileNavProps {
 
 export function MobileNav({ open, onClose, platform = false }: MobileNavProps) {
   const { tenantRole } = useAppUser();
+  const whatsapp = useWhatsappConnected();
   const source: NavItem[] = platform ? PLATFORM_NAV_ITEMS : NAV_ITEMS;
   const items = platform
     ? source
@@ -49,6 +51,21 @@ export function MobileNav({ open, onClose, platform = false }: MobileNavProps) {
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
           {items.map((item) => {
             const Icon = item.icon;
+            if (item.needsWhatsapp && whatsapp !== true) {
+              return (
+                <div
+                  key={item.to}
+                  title="Em breve"
+                  aria-disabled="true"
+                  className="flex items-center gap-3 rounded-xl px-3 min-h-11 text-sm font-medium text-[#9CA3AF] cursor-not-allowed select-none"
+                >
+                  <Icon className="h-4.5 w-4.5 shrink-0" />
+                  <span className="flex-1">{item.label}</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-wide">em breve</span>
+                  <Lock className="h-3.5 w-3.5 shrink-0" />
+                </div>
+              );
+            }
             return (
               <NavLink
                 key={item.to}

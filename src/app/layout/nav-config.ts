@@ -25,6 +25,7 @@ export interface NavItem {
   icon: LucideIcon;
   adminOnly?: boolean;
   comingSoon?: boolean;
+  needsWhatsapp?: boolean;
 }
 
 export const PLATFORM_NAV_ITEMS: NavItem[] = [
@@ -43,7 +44,7 @@ export const TOP_NAV_ITEMS: NavItem[] = [
   { to: '/performance', label: 'Performance', icon: LineChart },
   { to: '/indicadores', label: 'Indicadores', icon: PieChart },
   { to: '/metas', label: 'Metas', icon: Target },
-  { to: '/conversas', label: 'Conversas', icon: Inbox },
+  { to: '/conversas', label: 'Conversas', icon: Inbox, needsWhatsapp: true },
   { to: '/agenda', label: 'Agenda', icon: CalendarDays },
   { to: '/playbooks', label: 'Playbooks', icon: BookOpen },
   { to: '/roteiro', label: 'Roteiro', icon: Compass },
