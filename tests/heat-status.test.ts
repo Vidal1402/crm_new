@@ -24,5 +24,10 @@ test('saved rings are cities, not the state of Rio', () => {
   const lngs = rio.map((point) => point[0]);
   const width = Math.max(...lngs) - Math.min(...lngs);
   assert.ok(width < 1.2);
+  let longest = 0;
+  for (let index = 1; index < rio.length; index += 1) {
+    longest = Math.max(longest, Math.hypot(rio[index][0] - rio[index - 1][0], rio[index][1] - rio[index - 1][1]));
+  }
+  assert.ok(longest < 0.09);
   assert.notEqual(vitoria[0][0], vila[0][0]);
 });
