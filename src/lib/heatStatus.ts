@@ -18,3 +18,10 @@ export function contactStatusColor(stageName: string, status: string): string {
 export function hottestColor(colors: string[]): string {
   return colors.reduce((best, color) => (RANK.indexOf(color as typeof RANK[number]) > RANK.indexOf(best as typeof RANK[number]) ? color : best), HEAT_COLORS.green);
 }
+
+export function countColor(leads: number): string {
+  if (leads >= 16) return HEAT_COLORS.red;
+  if (leads >= 11) return HEAT_COLORS.orange;
+  if (leads >= 7) return HEAT_COLORS.yellow;
+  return HEAT_COLORS.green;
+}

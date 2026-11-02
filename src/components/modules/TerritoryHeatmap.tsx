@@ -111,7 +111,19 @@ function attachCityVeil(map: MapType, getZones: () => HeatZone[]) {
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     svg.replaceChildren();
     for (const zone of getZones()) {
-      if (!zone.ring || zone.ring.length < 3) continue;
+      if (!zone.ring || zone.ring.length < 3) {
+        const point = map.project([zone.lng, zone.lat]);
+        const mark = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        mark.setAttribute('cx', point.x.toFixed(1));
+        mark.setAttribute('cy', point.y.toFixed(1));
+        mark.setAttribute('r', '70');
+        mark.setAttribute('fill', rgba(zone.color, 0.22));
+        mark.setAttribute('stroke', zone.color);
+        mark.setAttribute('stroke-width', '2.5');
+        mark.setAttribute('stroke-dasharray', '8 6');
+        svg.appendChild(mark);
+        continue;
+      }
       const shape = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
       shape.setAttribute('fill', rgba(zone.color, 0.22));
       shape.setAttribute('stroke', zone.color);
@@ -203,7 +215,7 @@ function createMap(el: HTMLDivElement, opts: { center: [number, number]; zoom: n
     bearing: opts.bearing,
     attributionControl: false,
   });
-  map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
+  map.addControl(new NavigationControl({ visualizePitch: false }), 'top-right');
   if (veil) attachCityVeil(map, getZones);
   map.on('load', () => {
     map.resize();
@@ -226,9 +238,7 @@ export function TerritoryHeatmap({
   zones?: HeatZone[];
 }) {
   const overviewEl = useRef<HTMLDivElement>(null);
-  const streetEl = useRef<HTMLDivElement>(null);
   const overviewRef = useRef<MapType | null>(null);
-  const streetRef = useRef<MapType | null>(null);
   const onSelectRef = useRef(onSelect);
   const selectedRef = useRef(selected);
   const [q, setQ] = useState('');
@@ -240,13 +250,10 @@ export function TerritoryHeatmap({
 
   useEffect(() => {
     const a = overviewEl.current;
-    const b = streetEl.current;
-    if (!a || !b) return;
+    if (!a) return;
 
-    const overview = createMap(a, { center: RIO, zoom: 11, pitch: 20, bearing: 0 }, () => zonesRef.current, true);
-    const street = createMap(b, { center: RIO, zoom: 14, pitch: 50, bearing: 18 }, () => zonesRef.current);
+    const overview = createMap(a, { center: RIO, zoom: 11, pitch: 0, bearing: 0 }, () => zonesRef.current, true);
     overviewRef.current = overview;
-    streetRef.current = street;
 
     const pick = (lng: number, lat: number) => {
       const z = nearestCity(zonesRef.current, lng, lat);
@@ -254,37 +261,30 @@ export function TerritoryHeatmap({
       onSelectRef.current(selectedRef.current === z.city ? null : z.city);
     };
     overview.on('click', (e) => pick(e.lngLat.lng, e.lngLat.lat));
-    street.on('click', (e) => pick(e.lngLat.lng, e.lngLat.lat));
 
     const ro = new ResizeObserver(() => {
       overview.resize();
-      street.resize();
     });
     ro.observe(a);
-    ro.observe(b);
 
     return () => {
       ro.disconnect();
       overview.remove();
-      street.remove();
       overviewRef.current = null;
-      streetRef.current = null;
     };
   }, []);
 
   useEffect(() => {
-    for (const map of [overviewRef.current, streetRef.current]) {
-      if (!map) continue;
-      const draw = () => paintHeat(map, zones);
-      if (map.isStyleLoaded()) draw();
-      else map.once('load', draw);
-    }
+    const map = overviewRef.current;
+    if (!map) return;
+    const draw = () => paintHeat(map, zones);
+    if (map.isStyleLoaded()) draw();
+    else map.once('load', draw);
   }, [zones]);
 
   useEffect(() => {
     const overview = overviewRef.current;
-    const street = streetRef.current;
-    if (!overview || !street) return;
+    if (!overview) return;
     const chosen = zones.find((item) => item.city === selected);
     const framed = chosen ? [chosen] : zones;
     if (framed.length > 0) {
@@ -293,13 +293,10 @@ export function TerritoryHeatmap({
         if (zone.ring && zone.ring.length > 0) zone.ring.forEach(([lng, lat]) => bounds.extend([lng, lat]));
         else bounds.extend([zone.lng, zone.lat]);
       }
-      overview.fitBounds(bounds, { padding: 28, duration: 700, maxZoom: chosen ? 12 : 8 });
-      const focus = chosen ?? framed[0];
-      street.easeTo({ center: [focus.lng, focus.lat], zoom: 14, pitch: 55, bearing: 18, duration: 700 });
+      overview.fitBounds(bounds, { padding: 36, duration: 700, maxZoom: chosen ? 12 : 8 });
       return;
     }
-    focusRio(overview, 11, 20);
-    focusRio(street, 14, 50);
+    focusRio(overview, 11, 0);
   }, [selected, zones]);
 
   useEffect(() => {
@@ -327,7 +324,6 @@ export function TerritoryHeatmap({
 
   const flySearch = (lat: number, lng: number, label: string) => {
     overviewRef.current?.easeTo({ center: [lng, lat], zoom: 14, duration: 800 });
-    streetRef.current?.easeTo({ center: [lng, lat], zoom: 17.2, pitch: 75, duration: 800 });
     setQ(label);
     setHits([]);
     const zone = nearestCity(zonesRef.current, lng, lat);
@@ -355,27 +351,21 @@ export function TerritoryHeatmap({
           </ul>
         ) : null}
       </div>
-      <style>{'.prospect-map.maplibregl-map{height:400px!important;width:100%!important}.prospect-map .maplibregl-canvas{max-width:none!important;width:100%!important;height:100%!important}'}</style>
-      <div className="grid overflow-hidden rounded-xl border border-[#E5E7EB] lg:grid-cols-2">
-        <div>
-          <div className="border-b border-[#F3F4F6] px-3 py-1.5 text-[11px] text-[#6B7280]">Mapa de calor</div>
-          <div ref={overviewEl} className="prospect-map w-full bg-[#E8EEE9]" style={{ height: 400 }} />
-        </div>
-        <div className="border-t border-[#E5E7EB] lg:border-l lg:border-t-0">
-          <div className="border-b border-[#F3F4F6] px-3 py-1.5 text-[11px] text-[#6B7280]">Vista da rua (3D)</div>
-          <div ref={streetEl} className="prospect-map w-full bg-[#E8EEE9]" style={{ height: 400 }} />
-        </div>
+      <style>{'.prospect-map.maplibregl-map{height:640px!important;width:100%!important}.prospect-map .maplibregl-canvas{max-width:none!important;width:100%!important;height:100%!important}'}</style>
+      <div className="overflow-hidden rounded-xl border border-[#E5E7EB]">
+        <div className="border-b border-[#F3F4F6] px-3 py-1.5 text-[11px] text-[#6B7280]">Mapa de calor</div>
+        <div ref={overviewEl} className="prospect-map w-full bg-[#E8EEE9]" style={{ height: 640 }} />
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#6B7280]">
-        <span>{CARTO_KEY ? 'Â© OpenStreetMap Â· Â© CARTO Â· clique no bairro' : 'OpenFreeMap Â· sem chave Â· clique no bairro'}</span>
+        <span>{CARTO_KEY ? '© OpenStreetMap · © CARTO · clique na cidade' : 'OpenFreeMap · sem chave · clique na cidade'}</span>
         <div className="flex items-center gap-1">
-          <span>aberto</span>
+          <span>1–6</span>
           <span className="h-2 w-4 rounded-sm bg-[#16A34A]" />
-          <span>estudo</span>
+          <span>7–10</span>
           <span className="h-2 w-4 rounded-sm bg-[#FACC15]" />
-          <span>acordo</span>
+          <span>11–15</span>
           <span className="h-2 w-4 rounded-sm bg-[#F97316]" />
-          <span>perdido</span>
+          <span>16+</span>
           <span className="h-2 w-4 rounded-sm bg-[#DC2626]" />
         </div>
       </div>

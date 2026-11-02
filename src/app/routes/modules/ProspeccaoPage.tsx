@@ -4,7 +4,7 @@ import { ModuleHeader, Panel, fieldClass } from '@/components/modules/ModuleChro
 import { TerritoryHeatmap, type HeatZone, heatZoneLabel } from '@/components/modules/TerritoryHeatmap';
 import { knownCity, cityKey, sameCity, geocodeCity } from '@/lib/geocode';
 import { cityRing, loadCityRing } from '@/lib/cityShape';
-import { HEAT_COLORS, contactStatusColor, hottestColor } from '@/lib/heatStatus';
+import { countColor } from '@/lib/heatStatus';
 import { leadCount, ringBox, type PlaceHit } from '@/lib/places';
 import { normalizePhone } from '@/lib/phone';
 import { useCrmFeed } from '@/hooks/useCrmFeed';
@@ -21,6 +21,7 @@ export default function ProspeccaoPage() {
   const [count, setCount] = useState('10');
   const [companyCity, setCompanyCity] = useState('Rio de Janeiro');
   const [hits, setHits] = useState<PlaceHit[]>([]);
+  const [searched, setSearched] = useState<{ city: string; count: number; lat: number; lng: number } | null>(null);
   const [phones, setPhones] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState<Record<string, boolean>>({});
   const [searching, setSearching] = useState(false);
@@ -29,7 +30,7 @@ export default function ProspeccaoPage() {
   const [extraRings, setExtraRings] = useState<Record<string, [number, number][]>>({});
   const triedRings = useRef(new Set<string>());
   const lists = [...new Set(feed.contacts.map((item) => item.list).filter(Boolean))];
-  const cityNames = [...new Set(feed.contacts.map((item) => item.city).filter(Boolean))].sort().join('|');
+  const cityNames = [...new Set([...feed.contacts.map((item) => item.city), searched?.city].filter(Boolean))].sort().join('|');
   useEffect(() => {
     const missing = cityNames.split('|').filter((city) => city && !cityRing(city) && !triedRings.current.has(city));
     if (missing.length === 0) return;
@@ -83,9 +84,14 @@ export default function ProspeccaoPage() {
       setPhones(Object.fromEntries(places.map((hit) => [hitKey(hit), hit.phone])));
       setSearchSource(data.source === 'google' ? 'Google' : data.source === 'receita' ? 'Receita Federal' : 'OpenStreetMap');
       if (places.length === 0) {
+        setSearched(null);
         setSearchError(data.knownNiche
           ? 'Nenhuma empresa desse nicho nessa cidade.'
           : 'Esse nicho não está na lista (padaria, restaurante, farmácia, dentista, academia, mercado, pet shop, oficina, salão). Nada com esse nome nessa cidade.');
+      } else {
+        const placed = places.find((item) => Number.isFinite(item.lat) && Number.isFinite(item.lng));
+        setSearched({ city, count: places.length, lat: placed?.lat ?? point.lat, lng: placed?.lng ?? point.lng });
+        setZone(city);
       }
     } catch {
       setSearchError('A busca de empresas não respondeu. Tente de novo.');
@@ -103,16 +109,22 @@ export default function ProspeccaoPage() {
       row.leads += 1;
       counts.set(key, row);
     }
+    if (searched) {
+      const key = cityKey(searched.city);
+      if (key) {
+        const row = counts.get(key) ?? { label: searched.city, leads: 0 };
+        row.leads = Math.max(row.leads, searched.count);
+        counts.set(key, row);
+      }
+    }
     return [...counts.entries()].flatMap(([key, bucket]) => {
-      const city = bucket.label;
+      const city = searched && cityKey(searched.city) === key ? searched.city : bucket.label;
       const sample = feed.contacts.find((item) => cityKey(item.city) === key && item.lat !== null && item.lng !== null);
+      const searchedPoint = searched && cityKey(searched.city) === key ? { lat: searched.lat, lng: searched.lng } : null;
       const point = sample && sample.lat !== null && sample.lng !== null
         ? { lat: sample.lat, lng: sample.lng }
-        : knownCity(key);
+        : knownCity(key) ?? searchedPoint;
       if (!point) return [];
-      const colors = feed.deals
-        .filter((deal) => feed.contacts.some((item) => item.id === deal.contactId && cityKey(item.city) === key))
-        .map((deal) => contactStatusColor(deal.stageName, deal.status));
       return [{
         city,
         label: city,
@@ -120,11 +132,11 @@ export default function ProspeccaoPage() {
         lat: point.lat,
         v: Math.min(1, bucket.leads / 20),
         leads: bucket.leads,
-        color: colors.length > 0 ? hottestColor(colors) : HEAT_COLORS.green,
+        color: countColor(bucket.leads),
         ring: cityRing(key) ?? extraRings[key],
       }];
     });
-  }, [feed.contacts, feed.deals, extraRings]);
+  }, [feed.contacts, extraRings, searched]);
   const filtered = feed.contacts.filter((item) => {
     const hay = `${item.name} ${item.city} ${item.address} ${item.phone} ${item.email}`.toLowerCase();
     const pipelineNames = feed.deals.filter((deal) => deal.contactId === item.id).map((deal) => deal.pipelineName);

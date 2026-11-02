@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { HEAT_COLORS, contactStatusColor, hottestColor } from '../src/lib/heatStatus.ts';
+import { HEAT_COLORS, contactStatusColor, countColor, hottestColor } from '../src/lib/heatStatus.ts';
 import { CITY_RINGS } from '../src/lib/cityRings.ts';
 
 test('contact status reuses the existing heat colors', () => {
@@ -9,6 +9,10 @@ test('contact status reuses the existing heat colors', () => {
   assert.equal(contactStatusColor('Estudo', 'open'), HEAT_COLORS.yellow);
   assert.equal(contactStatusColor('Ganho', 'won'), HEAT_COLORS.green);
   assert.equal(hottestColor([HEAT_COLORS.green, HEAT_COLORS.yellow, HEAT_COLORS.red]), HEAT_COLORS.red);
+  assert.equal(countColor(1), HEAT_COLORS.green);
+  assert.equal(countColor(7), HEAT_COLORS.yellow);
+  assert.equal(countColor(11), HEAT_COLORS.orange);
+  assert.equal(countColor(16), HEAT_COLORS.red);
 });
 
 test('saved rings are cities, not the state of Rio', () => {
